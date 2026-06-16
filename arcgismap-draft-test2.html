@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ArcGIS Map Explorer</title>
+
+  <!-- ArcGIS API for JavaScript -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/dark/main.css" />
+  <script src="https://js.arcgis.com/4.30/"></script>
+
+  <style>
+    /* ── Design tokens ────────────────────────────────────────── */
+    :root {
+      --bg:          #0d1117;
+      --surface:     #161b22;
+      --surface-2:   #1f2937;
+      --border:      #30363d;
+      --accent:      #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.25);
+      --accent-dim:  #1d4ed8;
+      --text:        #e6edf3;
+      --text-muted:  #8b949e;
+      --success:     #22c55e;
+      --warning:     #f59e0b;
+      --font-ui:     'Inter', 'Segoe UI', system-ui, sans-serif;
+      --font-mono:   'JetBrains Mono', 'Fira Code', monospace;
+      --radius:      8px;
+      --shadow:      0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ──────────────────────────────────────────────── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      height: 52px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+
+    .logo-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .topbar-spacer { flex: 1; }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+    }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background 0.3s;
+    }
+    .status-dot.ready   { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .status-dot.loading { background: var(--warning); animation: pulse 1s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    /* ── Layout: sidebar + map ────────────────────────────────── */
+    #layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+    #sidebar {
+      width: 300px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 10;
+    }
+
+    .sidebar-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-section h3 {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    /* Basemap selector */
+    .basemap-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .basemap-btn {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      padding: 8px 6px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      text-align: center;
+    }
+    .basemap-btn:hover { border-color: var(--accent); }
+    .basemap-btn.active {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    /* View mode toggle */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+    }
+    .toggle-switch input { display: none; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-track { background: var(--accent-dim); border-color: var(--accent); }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 16px; height: 16px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-track::after {
+      transform: translateX(18px);
+      background: white;
+    }
+
+    /* Coordinate display */
+    .coord-display {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      line-height: 1.8;
+    }
+
+    .coord-display span { color: var(--accent); }
+
+    /* Layer list placeholder */
+    .layer-list-empty {
+      text-align: center;
+      padding: 20px 0;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .add-layer-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      margin-top: 10px;
+      padding: 9px 14px;
+      background: var(--accent-glow);
+      border: 1px dashed var(--accent);
+      border-radius: var(--radius);
+      color: var(--accent);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .add-layer-btn:hover { background: rgba(59,130,246,0.2); }
+
+    /* ── Map container ────────────────────────────────────────── */
+    #map-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    arcgis-map-view {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Zoom controls override placement */
+    .esri-ui-top-left { top: 16px !important; left: 16px !important; }
+
+    /* ── Loading overlay ──────────────────────────────────────── */
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 50;
+      transition: opacity 0.4s;
+    }
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #loading-overlay p {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ── Tooltip ──────────────────────────────────────────────── */
+    #map-tooltip {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      pointer-events: none;
+      box-shadow: var(--shadow);
+      line-height: 1.7;
+      min-width: 200px;
+    }
+
+    #map-tooltip .tip-label { color: var(--text-muted); margin-right: 4px; }
+    #map-tooltip .tip-val   { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ───────────────────────────────────────────────── -->
+<div id="topbar">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    ArcGIS Map Explorer
+  </div>
+  <div class="topbar-spacer"></div>
+  <div class="status-pill">
+    <div class="status-dot loading" id="status-dot"></div>
+    <span id="status-text">Initializing…</span>
+  </div>
+</div>
+
+<!-- ── Main layout ────────────────────────────────────────────── -->
+<div id="layout">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+
+
+    <!-- Basemap -->
+    <div class="sidebar-section">
+      <h3>Basemap</h3>
+      <div class="basemap-grid" id="basemap-grid">
+        <button class="basemap-btn active" data-id="dark-gray-vector">Dark Gray</button>
+        <button class="basemap-btn" data-id="streets-vector">Streets</button>
+        <button class="basemap-btn" data-id="satellite">Satellite</button>
+        <button class="basemap-btn" data-id="topo-vector">Topo</button>
+        <button class="basemap-btn" data-id="hybrid">Hybrid</button>
+        <button class="basemap-btn" data-id="openstreetmap">OpenStreetMap</button>
+      </div>
+    </div>
+
+    <!-- View -->
+    <div class="sidebar-section">
+      <h3>View</h3>
+      <div class="toggle-row">
+        <span>3D Scene View</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="toggle-3d" />
+          <div class="toggle-track"></div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Coordinates -->
+    <div class="sidebar-section">
+      <h3>Cursor Coordinates</h3>
+      <div class="coord-display" id="coord-display">
+        <div><span id="coord-lat">—</span> lat</div>
+        <div><span id="coord-lon">—</span> lon</div>
+        <div>Zoom <span id="coord-zoom">—</span></div>
+        <div>Scale 1:<span id="coord-scale">—</span></div>
+      </div>
+    </div>
+
+    <!-- Layers -->
+    <div class="sidebar-section" style="flex:1">
+      <h3>Data Layers</h3>
+      <div class="layer-list-empty" id="layer-list">
+        No layers added yet.<br />Use the button below to start exploring data.
+      </div>
+      <button class="add-layer-btn" id="add-layer-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Add Data Layer
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Map -->
+  <div id="map-container">
+    <div id="loading-overlay">
+      <div class="spinner"></div>
+      <p>Loading ArcGIS runtime…</p>
+    </div>
+
+    <!-- Map rendered here by web component -->
+    <div id="viewDiv" style="width:100%;height:100%;"></div>
+
+    <!-- Live coordinate tooltip -->
+    <div id="map-tooltip">
+      <div><span class="tip-label">Hover map</span> to see coordinates</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── ArcGIS Web Component via AMD ────────────────────────────────
+require([
+  "esri/Map",
+  "esri/views/MapView",
+  "esri/views/SceneView",
+  "esri/Basemap",
+  "esri/widgets/Zoom",
+  "esri/widgets/Home",
+  "esri/widgets/ScaleBar",
+  "esri/widgets/Compass",
+  "esri/widgets/Search",
+  "esri/widgets/Legend"
+], function(Map, MapView, SceneView, Basemap, Zoom, Home, ScaleBar, Compass, Search, Legend) {
+
+  // ── State ────────────────────────────────────────────────────
+  let currentView = null;
+  let is3D = false;
+  let currentBasemap = "dark-gray-vector";
+
+  const $  = id => document.getElementById(id);
+  const statusDot  = $("status-dot");
+  const statusText = $("status-text");
+  const overlay    = $("loading-overlay");
+
+
+// ── Layer persistence (save / load) ─────────────────────────────
+function saveLayers() {
+  const layersData = map.layers.items.map(lyr => ({
+    url: lyr.url,
+    title: lyr.title,
+    type: lyr.declaredClass.includes("CSV") ? "csv"
+         : lyr.declaredClass.includes("Tile") ? "tile"
+         : "feature"
+  }));
+  localStorage.setItem("savedLayers", JSON.stringify(layersData));
+}
+
+function loadSavedLayers() {
+  const data = JSON.parse(localStorage.getItem("savedLayers") || "[]");
+  data.forEach(l => addLayer(l.url, l.title, l.type));
+}
+
+  function setStatus(state, text) {
+    statusDot.className  = "status-dot " + state;
+    statusText.textContent = text;
+  }
+
+  // ── Create map ───────────────────────────────────────────────
+  const map = new Map({ basemap: currentBasemap });
+
+  // ── Build view ───────────────────────────────────────────────
+  function buildView(use3D) {
+    if (currentView) currentView.destroy();
+
+    const ViewClass = use3D ? SceneView : MapView;
+
+    const viewCfg = {
+      container: "viewDiv",
+      map: map,
+      center: [-98.5795, 39.8283],   // center of contiguous US
+      zoom: 4
+    };
+
+    if (use3D) {
+      viewCfg.camera = {
+        position: { x: -98.5795, y: 20, z: 8000000 },
+        tilt: 30
+      };
+      delete viewCfg.zoom;
+    }
+    
+    const view = new ViewClass(viewCfg);
+
+    // Widgets
+    view.ui.remove("zoom");
+    view.ui.add(new Zoom({ view }), "top-left");
+    view.ui.add(new Home({ view }), "top-left");
+    if (!use3D) view.ui.add(new ScaleBar({ view, unit: "dual" }), "bottom-left");
+    view.ui.add(new Compass({ view }), "top-left");
+
+    // Pointer-move → coordinate display
+    view.on("pointer-move", evt => {
+      const pt = view.toMap({ x: evt.x, y: evt.y });
+      if (!pt) return;
+      $("coord-lat").textContent  = pt.latitude.toFixed(5);
+      $("coord-lon").textContent  = pt.longitude.toFixed(5);
+      $("coord-zoom").textContent = Math.round(view.zoom);
+      $("coord-scale").textContent = Math.round(view.scale).toLocaleString();
+
+      const tooltip = $("map-tooltip");
+      tooltip.innerHTML = `
+        <div><span class="tip-label">lat</span><span class="tip-val">${pt.latitude.toFixed(5)}</span></div>
+        <div><span class="tip-label">lon</span><span class="tip-val">${pt.longitude.toFixed(5)}</span></div>
+        <div><span class="tip-label">zoom</span><span class="tip-val">${Math.round(view.zoom)}</span></div>
+      `;
+    });
+
+    view.when(() => {
+      overlay.classList.add("hidden");
+      setStatus("ready", "Map ready");
+      // Attach search widget to sidebar container
+      const search = new Search({ view, popupEnabled: false });
+      view.ui.add(search, 'top-right');
+      const legend = new Legend({
+      view: view,
+      style: "classic"
+});
+      view.ui.add(legend, "bottom-left");
+      loadSavedLayers();
+    }, err => {
+      setStatus("", "Error loading map");
+      console.error(err);
+    });
+
+    currentView = view;
+    return view;
+  }
+
+  // Initial build
+  buildView(false);
+
+  // ── Basemap switcher ─────────────────────────────────────────
+  document.querySelectorAll(".basemap-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      currentBasemap = id;
+      map.basemap = id;
+      document.querySelectorAll(".basemap-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+
+  // ── 3D toggle ────────────────────────────────────────────────
+  $("toggle-3d").addEventListener("change", e => {
+    is3D = e.target.checked;
+    overlay.classList.remove("hidden");
+    setStatus("loading", is3D ? "Building 3D scene…" : "Loading 2D map…");
+    buildView(is3D);
+  });
+
+  // ── Add Layer placeholder ─────────────────────────────────────
+  $("add-layer-btn").addEventListener("click", () => {
+    showLayerDialog();
+  });
+
+  // ── Layer dialog ─────────────────────────────────────────────
+  function showLayerDialog() {
+    // Simple in-page modal for entering a Feature Layer URL
+    const existing = document.getElementById("layer-dialog");
+    if (existing) existing.remove();
+
+    const dialog = document.createElement("div");
+    dialog.id = "layer-dialog";
+    dialog.style.cssText = `
+      position:fixed; inset:0; z-index:200;
+      background:rgba(0,0,0,0.7);
+      display:flex; align-items:center; justify-content:center;
+    `;
+    dialog.innerHTML = `
+      <div style="
+        background:#1f2937; border:1px solid #30363d;
+        border-radius:12px; padding:28px; width:440px;
+        box-shadow:0 8px 40px rgba(0,0,0,0.7);
+        font-family:'Inter',sans-serif; color:#e6edf3;
+      ">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h2 style="font-size:16px;font-weight:600;">Add Data Layer</h2>
+          <button id="dialog-close" style="background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer;">✕</button>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#8b949e;display:block;margin-bottom:8px;">
+            Layer Type
+          </label>
+          <select id="layer-type" style="
+            width:100%;padding:9px 12px;background:#0d1117;
+            border:1px solid #30363d;border-radius:8px;color:#e6edf3;
+            font-size:13px;font-family:inherit;
+          ">
+            <option value="feature">Feature Layer (URL)</option>
+            <option value="tile">Tile Layer (URL)</option>
+            <option value="csv">CSV Layer (URL)</option>
+            <option value="geojson">GeoJSON Layer (URL)</option>
+            <option value="wms">WMS Layer (URL)</option>
+            <option value="wmts">WMTS Layer (URL)</option>
+            <option value="kml">KML Layer (URL)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#8b949e;display:block;margin-bottom:8px;">
+            Service URL
+          </label>
+          <input id="layer-url" type="text" placeholder="https://services.arcgis.com/…/FeatureServer/0" style="
+            width:100%;padding:9px 12px;background:#0d1117;
+            border:1px solid #30363d;border-radius:8px;color:#e6edf3;
+            font-size:13px;font-family:inherit;outline:none;
+          " />
+        </div>
+
+        <div style="margin-bottom:20px;">
+          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#8b949e;display:block;margin-bottom:8px;">
+            Display Name
+          </label>
+          <input id="layer-name" type="text" placeholder="My Layer" style="
+            width:100%;padding:9px 12px;background:#0d1117;
+            border:1px solid #30363d;border-radius:8px;color:#e6edf3;
+            font-size:13px;font-family:inherit;outline:none;
+          " />
+        </div>
+
+        <div style="font-size:11px;color:#8b949e;margin-bottom:20px;line-height:1.7;background:#0d1117;border-radius:8px;padding:10px 12px;">
+          <strong style="color:#3b82f6;">Quick test layers:</strong><br/>
+          <span style="font-family:monospace;">https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/World_Cities/FeatureServer/0</span>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button id="dialog-cancel" style="
+            padding:9px 18px;background:transparent;
+            border:1px solid #30363d;border-radius:8px;
+            color:#8b949e;font-family:inherit;font-size:13px;cursor:pointer;
+          ">Cancel</button>
+          <button id="dialog-add" style="
+            padding:9px 18px;background:#1d4ed8;
+            border:1px solid #3b82f6;border-radius:8px;
+            color:white;font-family:inherit;font-size:13px;cursor:pointer;
+          ">Add Layer</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    document.getElementById("dialog-close").onclick   = () => dialog.remove();
+    document.getElementById("dialog-cancel").onclick  = () => dialog.remove();
+    document.getElementById("dialog-add").onclick     = () => addLayerFromDialog(dialog);
+  }
+
+  function addLayerFromDialog(dialog) {
+    const url   = document.getElementById("layer-url").value.trim();
+    const name  = document.getElementById("layer-name").value.trim() || "Layer";
+    const type  = document.getElementById("layer-type").value;
+
+    if (!url) {
+      document.getElementById("layer-url").style.borderColor = "#ef4444";
+      return;
+    }
+
+    dialog.remove();
+    addLayer(url, name, type);
+  }
+  
+  function addLayer(url, title, type) {
+    setStatus("loading", "Loading layer…");
+
+    // Dynamically require the right layer class
+    const moduleMap = {
+      feature: "esri/layers/FeatureLayer",
+      tile:    "esri/layers/TileLayer",
+      csv:     "esri/layers/CSVLayer"
+    };
+
+    require([moduleMap[type] || "esri/layers/FeatureLayer"], function(LayerClass) {
+      const layer = new LayerClass({ url, title });
+
+      map.add(layer);
+
+      layer.when(() => {
+        //
+// LABELING — adds text labels for the layer
+//
+try {
+  const labelField = layer.fields.find(f =>
+    f.type === "string" &&
+    !["objectid", "globalid"].includes(f.name.toLowerCase())
+  );
+
+  if (labelField) {
+    layer.labelingInfo = [{
+      labelExpressionInfo: {
+  expression: `$feature.${labelField.name}`
+},
+      symbol: is3D
+        ? {
+            // 3D label
+            type: "label-3d",
+            symbolLayers: [{
+              type: "text",
+              material: { color: "white" },
+              size: 12,
+              halo: {
+                color: "black",
+                size: 2
+              }
+            }]
+          }
+        : {
+            // 2D label
+            type: "text",
+            color: "white",
+            haloColor: "black",
+            haloSize: 2,
+            font: {
+              family: "Arial",
+              size: 12,
+              weight: "bold"
+            }
+          }
+    }];
+  }
+} catch (err) {
+  console.warn("Labeling skipped:", err);
+}
+
+        setStatus("ready", "Layer loaded");
+
+// Auto‑create unique-value renderer (geometry aware)
+try {
+  const fields = layer.fields || [];
+  const field = fields.find(f =>
+    f.type === "string" &&
+    !["objectid", "globalid"].includes(f.name.toLowerCase())
+  );
+
+  if (!field) return;
+
+  layer.queryFeatures().then(result => {
+    const values = [...new Set(result.features.map(f => f.attributes[field.name]))];
+
+    function randomColor() {
+      return [
+        Math.floor(Math.random() * 200) + 30,
+        Math.floor(Math.random() * 200) + 30,
+        Math.floor(Math.random() * 200) + 30,
+        0.8
+      ];
+    }
+
+    const geometryType = layer.geometryType;
+
+    const symbolFor = (color) => {
+      if (geometryType === "point" || geometryType === "multipoint") {
+        return {
+          type: "simple-marker",
+          color,
+          size: 8,
+          outline: { color: "white", width: 0.5 }
+        };
+      }
+      if (geometryType === "polyline") {
+        return {
+          type: "simple-line",
+          color,
+          width: 2
+        };
+      }
+      return {
+        type: "simple-fill",
+        color,
+        outline: { color: "white", width: 0.5 }
+      };
+    };
+
+    const uniqueValueInfos = values.map(val => {
+      const color = randomColor();
+      return {
+        value: val,
+        label: val,
+        symbol: symbolFor(color)
+      };
+    });
+
+    layer.renderer = {
+      type: "unique-value",
+      field: field.name,
+      uniqueValueInfos
+    };
+  });
+} catch (err) {
+  console.warn("Renderer skipped:", err);
+}
+
+//
+// POPUP TEMPLATE — enables click-to-view attribute info
+//
+try {
+  // Build popup fields automatically
+  const popupFields = layer.fields
+    .filter(f => f.type !== "oid") // skip objectID
+    .map(f => ({
+      fieldName: f.name,
+      label: f.alias || f.name,
+      visible: true
+    }));
+
+  layer.popupTemplate = {
+    title: layer.title || "Information",
+    content: [{
+      type: "fields",
+      fieldInfos: popupFields
+    }]
+  };
+} catch (err) {
+  console.warn("Popup template skipped:", err);
+}
+
+        setStatus("ready", "Layer loaded");
+        renderLayerList(map.layers.items);
+        saveLayers();
+        // Zoom to layer extent
+        if (currentView && layer.fullExtent) {
+          currentView.goTo(layer.fullExtent).catch(() => {});
+        }
+      }, err => {
+        setStatus("", "Layer error");
+        console.error("Layer load error:", err);
+        alert("Could not load layer. Check the URL and try again.");
+      });
+    });
+  }
+   
+// ── Layer persistence (save / load) ─────────────────────────────
+function saveLayers() {
+  const layersData = map.layers.items.map(lyr => ({
+    url: lyr.url,
+    title: lyr.title,
+    type: lyr.declaredClass.includes("CSV") ? "csv"
+         : lyr.declaredClass.includes("Tile") ? "tile"
+         : "feature"
+  }));
+  localStorage.setItem("savedLayers", JSON.stringify(layersData));
+}
+
+function loadSavedLayers() {
+  const data = JSON.parse(localStorage.getItem("savedLayers") || "[]");
+  data.forEach(l => addLayer(l.url, l.title, l.type));
+}
+
+  // ── Render layer list in sidebar ─────────────────────────────
+  function renderLayerList(layers) {
+    const list = $("layer-list");
+    if (!layers.length) {
+      list.innerHTML = "No layers added yet.<br/>Use the button below to start exploring data.";
+      list.className = "layer-list-empty";
+      return;
+    }
+
+    list.className = "";
+    list.innerHTML = "";
+
+    layers.forEach((lyr, i) => {
+      const item = document.createElement("div");
+      item.style.cssText = `
+        display:flex;align-items:center;justify-content:space-between;
+        padding:8px 10px;margin-bottom:6px;
+        background:#0d1117;border:1px solid #30363d;
+        border-radius:8px;font-size:13px;
+      `;
+
+      const left = document.createElement("div");
+      left.style.cssText = "display:flex;align-items:center;gap:8px;min-width:0;";
+      left.innerHTML = `
+        <span style="width:10px;height:10px;border-radius:2px;background:#3b82f6;flex-shrink:0;"></span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${lyr.title}">${lyr.title || "Layer " + (i+1)}</span>
+      `;
+
+      const right = document.createElement("div");
+      right.style.cssText = "display:flex;gap:4px;flex-shrink:0;";
+
+      // Visibility toggle
+      const visBtn = document.createElement("button");
+      visBtn.title = "Toggle visibility";
+      visBtn.style.cssText = "background:none;border:none;cursor:pointer;padding:3px;color:#8b949e;font-size:14px;";
+      visBtn.textContent = "👁";
+      visBtn.onclick = () => {
+        lyr.visible = !lyr.visible;
+        visBtn.style.opacity = lyr.visible ? "1" : "0.35";
+      };
+
+      // Remove button
+      const rmBtn = document.createElement("button");
+      rmBtn.title = "Remove layer";
+      rmBtn.style.cssText = "background:none;border:none;cursor:pointer;padding:3px;color:#8b949e;font-size:13px;";
+      rmBtn.textContent = "✕";
+      rmBtn.onclick = () => {
+        map.remove(lyr);
+        renderLayerList(map.layers.items);
+        saveLayers();
+      };
+
+      right.append(visBtn, rmBtn);
+      item.append(left, right);
+      list.appendChild(item);
+    });
+  }
+
+});
+</script>
+
+<script>
+  window.addEventListener('load', () => {
+    if (typeof require === 'undefined') {
+      const overlay = document.getElementById('loading-overlay');
+      overlay.classList.remove('hidden');
+      overlay.innerHTML = `
+        <div style="text-align:center;padding:24px;max-width:360px;">
+          <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+          <p style="color:#ef4444;font-size:15px;font-weight:600;margin-bottom:10px;">ArcGIS API failed to load</p>
+          <p style="color:#8b949e;font-size:13px;line-height:1.7;">
+            The ArcGIS CDN script could not be reached. This is usually caused by:<br/><br/>
+            <strong style="color:#e6edf3;">1.</strong> No internet connection<br/>
+            <strong style="color:#e6edf3;">2.</strong> Opening the file directly as <code style="color:#3b82f6;">file://</code> — try serving it locally instead:<br/><br/>
+            <code style="background:#0d1117;padding:6px 10px;border-radius:6px;display:inline-block;color:#3b82f6;">python -m http.server 8080</code><br/><br/>
+            then open <code style="color:#3b82f6;">http://localhost:8080</code>
+          </p>
+        </div>
+      `;
+    }
+  });
+</script>
+</body>
+</html>
