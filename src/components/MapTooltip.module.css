@@ -1,0 +1,25 @@
+.tooltip {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  pointer-events: none;
+  box-shadow: var(--shadow);
+  line-height: 1.7;
+  min-width: 200px;
+}
+
+.label {
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.val {
+  color: var(--accent);
+}
