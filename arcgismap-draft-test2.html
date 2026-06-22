@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ArcGIS Map Viewer</title>
+  <title>ArcGIS Map Explorer</title>
 
-  <!-- ArcGIS API for JavaScript -->
-  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/dark/main.css" />
+  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/dark/main.css" id="esri-theme-css" />
   <script src="https://js.arcgis.com/4.30/"></script>
 
   <style>
@@ -17,16 +16,30 @@
       --surface-2:   #1f2937;
       --border:      #30363d;
       --accent:      #3b82f6;
-      --accent-glow: rgba(59, 130, 246, 0.25);
+      --accent-glow: rgba(59, 130, 246, 0.20);
       --accent-dim:  #1d4ed8;
       --text:        #e6edf3;
       --text-muted:  #8b949e;
       --success:     #22c55e;
       --warning:     #f59e0b;
+      --danger:      #ef4444;
       --font-ui:     'Inter', 'Segoe UI', system-ui, sans-serif;
       --font-mono:   'JetBrains Mono', 'Fira Code', monospace;
       --radius:      8px;
       --shadow:      0 4px 24px rgba(0,0,0,0.5);
+      --sidebar-w:   300px;
+    }
+
+    /* Light mode overrides */
+    body.light-mode {
+      --bg:          #f0f4f8;
+      --surface:     #ffffff;
+      --surface-2:   #e8edf2;
+      --border:      #cbd5e1;
+      --text:        #1e2937;
+      --text-muted:  #64748b;
+      --shadow:      0 4px 24px rgba(0,0,0,0.12);
+      --accent-glow: rgba(59, 130, 246, 0.12);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -39,6 +52,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transition: background 0.25s, color 0.25s;
     }
 
     /* ── Top bar ──────────────────────────────────────────────── */
@@ -46,7 +60,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 0 20px;
+      padding: 0 16px;
       height: 52px;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -62,6 +76,7 @@
       font-size: 15px;
       letter-spacing: -0.01em;
       color: var(--text);
+      white-space: nowrap;
     }
 
     .logo-dot {
@@ -69,9 +84,36 @@
       border-radius: 50%;
       background: var(--accent);
       box-shadow: 0 0 10px var(--accent-glow);
+      flex-shrink: 0;
     }
 
     .topbar-spacer { flex: 1; }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+      white-space: nowrap;
+    }
+    .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .icon-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+    .icon-btn svg { flex-shrink: 0; }
 
     .status-pill {
       display: flex;
@@ -84,6 +126,7 @@
       border: 1px solid var(--border);
       border-radius: 20px;
       padding: 4px 12px;
+      white-space: nowrap;
     }
 
     .status-dot {
@@ -91,16 +134,14 @@
       border-radius: 50%;
       background: var(--text-muted);
       transition: background 0.3s;
+      flex-shrink: 0;
     }
     .status-dot.ready   { background: var(--success); box-shadow: 0 0 6px var(--success); }
     .status-dot.loading { background: var(--warning); animation: pulse 1s infinite; }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.4; }
-    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-    /* ── Layout: sidebar + map ────────────────────────────────── */
+    /* ── Layout ───────────────────────────────────────────────── */
     #layout {
       display: flex;
       flex: 1;
@@ -109,35 +150,146 @@
 
     /* ── Sidebar ──────────────────────────────────────────────── */
     #sidebar {
-      width: 300px;
+      width: var(--sidebar-w);
       flex-shrink: 0;
       background: var(--surface);
       border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      overflow-y: auto;
+      overflow-y: scroll;
+      overflow-x: hidden;
       z-index: 10;
+      position: relative;
+      transition: background 0.25s, border-color 0.25s;
+      /* Large, always-visible scrollbar for the whole sidebar */
+      scrollbar-width: auto;
+      scrollbar-color: var(--accent) var(--surface-2);
     }
 
+    /* Webkit: wide, always-visible sidebar scrollbar */
+    #sidebar::-webkit-scrollbar {
+      width: 12px;
+    }
+    #sidebar::-webkit-scrollbar-track {
+      background: var(--surface-2);
+      border-left: 1px solid var(--border);
+    }
+    #sidebar::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 6px;
+      border: 2px solid var(--surface-2);
+      transition: background 0.2s;
+    }
+    #sidebar::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    /* Resize handle */
+    #sidebar-resizer {
+      position: absolute;
+      top: 0; right: 0;
+      width: 5px;
+      height: 100%;
+      cursor: col-resize;
+      background: transparent;
+      z-index: 20;
+      transition: background 0.2s;
+    }
+    #sidebar-resizer:hover, #sidebar-resizer.dragging {
+      background: var(--accent);
+    }
+
+    /* Collapsible section wrapper */
     .sidebar-section {
-      padding: 16px;
       border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      transition: border-color 0.25s;
     }
 
-    .sidebar-section h3 {
+    /* Section header — click to collapse */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      cursor: pointer;
+      user-select: none;
+      background: var(--surface-2);
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .section-header:hover { background: var(--accent-glow); }
+
+    .section-header h3 {
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--text-muted);
-      margin-bottom: 12px;
     }
 
-    /* Basemap selector */
+    .section-chevron {
+      color: var(--text-muted);
+      font-size: 11px;
+      transition: transform 0.2s;
+    }
+    .section-header.collapsed .section-chevron { transform: rotate(-90deg); }
+
+    /* Section body — scrollable, resizable */
+    .section-body {
+      padding: 12px 14px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+      /* Default max-height; user can resize via drag handle at bottom */
+      max-height: 240px;
+      transition: max-height 0.25s ease, padding 0.2s;
+      position: relative;
+    }
+    .section-body.collapsed {
+      max-height: 0 !important;
+      padding-top: 0;
+      padding-bottom: 0;
+      overflow: hidden;
+    }
+
+    /* Resize grip at bottom of section body */
+    .section-resize-grip {
+      height: 6px;
+      cursor: ns-resize;
+      background: transparent;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .section-resize-grip:hover, .section-resize-grip.dragging {
+      background: var(--accent-glow);
+    }
+    .section-resize-grip::before {
+      content: '';
+      display: block;
+      width: 32px;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--border);
+      transition: background 0.2s;
+    }
+    .section-resize-grip:hover::before, .section-resize-grip.dragging::before {
+      background: var(--accent);
+    }
+    .section-body.collapsed + .section-resize-grip { display: none; }
+
+    /* ── Basemap grid ─────────────────────────────────────────── */
     .basemap-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: 6px;
     }
 
     .basemap-btn {
@@ -147,37 +299,28 @@
       color: var(--text);
       font-family: var(--font-ui);
       font-size: 12px;
-      padding: 8px 6px;
+      padding: 7px 6px;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
+      transition: border-color 0.2s, background 0.2s, color 0.2s;
       text-align: center;
     }
     .basemap-btn:hover { border-color: var(--accent); }
-    .basemap-btn.active {
-      border-color: var(--accent);
-      background: var(--accent-glow);
-      color: var(--accent);
-    }
+    .basemap-btn.active { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
 
-    /* View mode toggle */
+    /* ── Toggle row ───────────────────────────────────────────── */
     .toggle-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px 0;
+      padding: 5px 0;
       font-size: 13px;
       color: var(--text);
     }
 
-    .toggle-switch {
-      position: relative;
-      width: 40px;
-      height: 22px;
-    }
+    .toggle-switch { position: relative; width: 40px; height: 22px; }
     .toggle-switch input { display: none; }
     .toggle-track {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: 11px;
@@ -194,12 +337,9 @@
       border-radius: 50%;
       transition: transform 0.2s, background 0.2s;
     }
-    .toggle-switch input:checked + .toggle-track::after {
-      transform: translateX(18px);
-      background: white;
-    }
+    .toggle-switch input:checked + .toggle-track::after { transform: translateX(18px); background: white; }
 
-    /* Coordinate display */
+    /* ── Coord display ────────────────────────────────────────── */
     .coord-display {
       font-family: var(--font-mono);
       font-size: 12px;
@@ -207,16 +347,15 @@
       background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 10px 12px;
+      padding: 9px 11px;
       line-height: 1.8;
     }
-
     .coord-display span { color: var(--accent); }
 
-    /* Layer list placeholder */
+    /* ── Layer list ───────────────────────────────────────────── */
     .layer-list-empty {
       text-align: center;
-      padding: 20px 0;
+      padding: 14px 0;
       color: var(--text-muted);
       font-size: 13px;
       line-height: 1.6;
@@ -228,8 +367,8 @@
       justify-content: center;
       gap: 6px;
       width: 100%;
-      margin-top: 10px;
-      padding: 9px 14px;
+      margin-top: 8px;
+      padding: 8px 14px;
       background: var(--accent-glow);
       border: 1px dashed var(--accent);
       border-radius: var(--radius);
@@ -241,6 +380,166 @@
     }
     .add-layer-btn:hover { background: rgba(59,130,246,0.2); }
 
+    /* ── Bookmark list ────────────────────────────────────────── */
+    .bookmark-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      margin-bottom: 5px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .bookmark-item:hover { border-color: var(--accent); background: var(--accent-glow); }
+    .bookmark-item-left { display: flex; align-items: center; gap: 8px; overflow: hidden; }
+    .bookmark-item-left span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bm-icon { font-size: 14px; flex-shrink: 0; }
+    .bm-rm {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: 13px; padding: 2px 4px;
+      border-radius: 4px; transition: color 0.2s;
+      flex-shrink: 0;
+    }
+    .bm-rm:hover { color: var(--danger); }
+
+    .bm-add-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .bm-input {
+      flex: 1;
+      padding: 7px 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .bm-input:focus { border-color: var(--accent); }
+    .bm-save-btn {
+      padding: 7px 12px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      color: white;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+    .bm-save-btn:hover { background: var(--accent); }
+
+    /* ── Drawing tools ────────────────────────────────────────── */
+    .draw-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .draw-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 8px 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, color 0.2s;
+    }
+    .draw-btn:hover { border-color: var(--accent); }
+    .draw-btn.active { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
+    .draw-clear-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      margin-top: 8px;
+      padding: 7px 14px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .draw-clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* ── Measurement section ──────────────────────────────────── */
+    .measure-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .measure-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 10px 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 11px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, color 0.2s;
+    }
+    .measure-btn:hover { border-color: var(--accent); }
+    .measure-btn.active { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
+    .measure-btn .m-icon { font-size: 18px; }
+
+    .measure-result {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      min-height: 58px;
+    }
+    .measure-result .mval { color: var(--accent); font-weight: 600; }
+
+    .measure-clear-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      margin-top: 8px;
+      padding: 7px 14px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .measure-clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+
     /* ── Map container ────────────────────────────────────────── */
     #map-container {
       flex: 1;
@@ -248,14 +547,7 @@
       overflow: hidden;
     }
 
-    arcgis-map-view {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-
-    /* Zoom controls override placement */
-    .esri-ui-top-left { top: 16px !important; left: 16px !important; }
+    #viewDiv { width: 100%; height: 100%; }
 
     /* ── Loading overlay ──────────────────────────────────────── */
     #loading-overlay {
@@ -280,33 +572,93 @@
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-overlay p { font-size: 13px; color: var(--text-muted); font-family: var(--font-mono); }
 
-    #loading-overlay p {
-      font-size: 13px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-
-    /* ── Tooltip ──────────────────────────────────────────────── */
-    #map-tooltip {
+    /* ── Legend panel ─────────────────────────────────────────── */
+    #legendPanel {
       position: absolute;
-      bottom: 20px;
-      right: 20px;
+      left: 16px;
+      bottom: 16px;
+      width: 240px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 10px 14px;
+      z-index: 40;
+      overflow: hidden;
+      transition: background 0.25s, border-color 0.25s;
+    }
+    #legendHeader {
+      padding: 8px 12px;
+      cursor: pointer;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    #legendBody { padding: 8px; }
+    #legendContainer {
+      width: 100%;
+      max-height: 120px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+      color: var(--text);
+    }
+
+    /* ── Map tooltip ──────────────────────────────────────────── */
+    #map-tooltip {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 13px;
       font-size: 12px;
       font-family: var(--font-mono);
       color: var(--text-muted);
       pointer-events: none;
       box-shadow: var(--shadow);
       line-height: 1.7;
-      min-width: 200px;
+      min-width: 180px;
+      z-index: 30;
+      transition: background 0.25s, border-color 0.25s;
     }
-    
     #map-tooltip .tip-label { color: var(--text-muted); margin-right: 4px; }
     #map-tooltip .tip-val   { color: var(--accent); }
+
+    /* ── Drawing mode banner ──────────────────────────────────── */
+    #draw-banner {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--accent-dim);
+      color: white;
+      font-size: 13px;
+      font-family: var(--font-ui);
+      padding: 6px 18px;
+      border-radius: 20px;
+      z-index: 35;
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    }
+
+    /* ── Light mode adjustments for ESRI ─────────────────────── */
+    body.light-mode .esri-ui-corner .esri-component,
+    body.light-mode .esri-widget { color: var(--text) !important; }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -318,9 +670,27 @@
     ArcGIS Map Explorer
   </div>
   <div class="topbar-spacer"></div>
-  <div class="status-pill">
-    <div class="status-dot loading" id="status-dot"></div>
-    <span id="status-text">Initializing…</span>
+  <div class="topbar-actions">
+    <!-- Dark / Light mode toggle -->
+    <button class="icon-btn" id="theme-toggle-btn" title="Toggle dark/light mode">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1" x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+      Light Mode
+    </button>
+
+    <div class="status-pill">
+      <div class="status-dot loading" id="status-dot"></div>
+      <span id="status-text">Initializing…</span>
+    </div>
   </div>
 </div>
 
@@ -329,59 +699,150 @@
 
   <!-- Sidebar -->
   <div id="sidebar">
+    <div id="sidebar-resizer"></div>
 
-
-    <!-- Basemap -->
-    <div class="sidebar-section">
-      <h3>Basemap</h3>
-      <div class="basemap-grid" id="basemap-grid">
-        <button class="basemap-btn active" data-id="dark-gray-vector">Dark Gray</button>
-        <button class="basemap-btn" data-id="streets-vector">Streets</button>
-        <button class="basemap-btn" data-id="satellite">Satellite</button>
-        <button class="basemap-btn" data-id="topo-vector">Topo</button>
-        <button class="basemap-btn" data-id="hybrid">Hybrid</button>
-        <button class="basemap-btn" data-id="osm">OpenStreetMap</button>
+    <!-- ── BASEMAP ────────────────────────────────────────────── -->
+    <div class="sidebar-section" id="sec-basemap">
+      <div class="section-header" data-target="body-basemap">
+        <h3>Basemap</h3>
+        <span class="section-chevron">▼</span>
       </div>
+      <div class="section-body" id="body-basemap">
+        <div class="basemap-grid" id="basemap-grid">
+          <button class="basemap-btn active" data-id="dark-gray-vector">Dark Gray</button>
+          <button class="basemap-btn" data-id="streets-vector">Streets</button>
+          <button class="basemap-btn" data-id="satellite">Satellite</button>
+          <button class="basemap-btn" data-id="topo-vector">Topo</button>
+          <button class="basemap-btn" data-id="hybrid">Hybrid</button>
+          <button class="basemap-btn" data-id="osm">OpenStreetMap</button>
+        </div>
+      </div>
+      <div class="section-resize-grip" data-body="body-basemap"></div>
     </div>
 
-    <!-- View -->
-    <div class="sidebar-section">
-      <h3>View</h3>
-      <div class="toggle-row">
-        <span>3D Scene View</span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="toggle-3d" />
-          <div class="toggle-track"></div>
-        </label>
+    <!-- ── VIEW ──────────────────────────────────────────────── -->
+    <div class="sidebar-section" id="sec-view">
+      <div class="section-header" data-target="body-view">
+        <h3>View</h3>
+        <span class="section-chevron">▼</span>
       </div>
+      <div class="section-body" id="body-view">
+        <div class="toggle-row">
+          <span>3D Scene View</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-3d" />
+            <div class="toggle-track"></div>
+          </label>
+        </div>
+      </div>
+      <div class="section-resize-grip" data-body="body-view"></div>
     </div>
 
-    <!-- Coordinates -->
-    <div class="sidebar-section">
-      <h3>Cursor Coordinates</h3>
-      <div class="coord-display" id="coord-display">
-        <div><span id="coord-lat">—</span> lat</div>
-        <div><span id="coord-lon">—</span> lon</div>
-        <div>Zoom <span id="coord-zoom">—</span></div>
-        <div>Scale 1:<span id="coord-scale">—</span></div>
+    <!-- ── COORDINATES ────────────────────────────────────────── -->
+    <div class="sidebar-section" id="sec-coords">
+      <div class="section-header" data-target="body-coords">
+        <h3>Cursor Coordinates</h3>
+        <span class="section-chevron">▼</span>
       </div>
+      <div class="section-body" id="body-coords">
+        <div class="coord-display">
+          <div><span id="coord-lat">—</span> lat</div>
+          <div><span id="coord-lon">—</span> lon</div>
+          <div>Zoom <span id="coord-zoom">—</span></div>
+          <div>Scale 1:<span id="coord-scale">—</span></div>
+        </div>
+      </div>
+      <div class="section-resize-grip" data-body="body-coords"></div>
     </div>
 
-    <!-- Layers -->
-    <div class="sidebar-section" style="flex:1">
-      <h3>Data Layers</h3>
-      <div class="layer-list-empty" id="layer-list">
-        No layers added yet.<br />Use the button below to start exploring data.
+    <!-- ── MEASUREMENT ────────────────────────────────────────── -->
+    <div class="sidebar-section" id="sec-measure">
+      <div class="section-header" data-target="body-measure">
+        <h3>Measurement</h3>
+        <span class="section-chevron">▼</span>
       </div>
-      <button class="add-layer-btn" id="add-layer-btn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Add Data Layer
-      </button>
+      <div class="section-body" id="body-measure">
+        <div class="measure-grid">
+          <button class="measure-btn" id="meas-distance" title="Measure distance between two points">
+            <span class="m-icon">📏</span>
+            Distance
+          </button>
+          <button class="measure-btn" id="meas-area" title="Measure area of a polygon">
+            <span class="m-icon">⬛</span>
+            Area
+          </button>
+          <button class="measure-btn" id="meas-perimeter" title="Measure perimeter / polyline length">
+            <span class="m-icon">🔲</span>
+            Perimeter
+          </button>
+        </div>
+        <div class="measure-result" id="measure-result">
+          <span style="color:var(--text-muted);">Select a tool, then click the map.</span>
+        </div>
+        <button class="measure-clear-btn" id="measure-clear-btn">✕ Clear Measurement</button>
+      </div>
+      <div class="section-resize-grip" data-body="body-measure"></div>
     </div>
 
-  </div>
+    <!-- ── DRAWING ────────────────────────────────────────────── -->
+    <div class="sidebar-section" id="sec-draw">
+      <div class="section-header" data-target="body-draw">
+        <h3>Drawing Tools</h3>
+        <span class="section-chevron">▼</span>
+      </div>
+      <div class="section-body" id="body-draw">
+        <div class="draw-grid">
+          <button class="draw-btn" data-action="point">📍 Point</button>
+          <button class="draw-btn" data-action="polyline">〰 Line</button>
+          <button class="draw-btn" data-action="polygon">⬡ Polygon</button>
+          <button class="draw-btn" data-action="rectangle">▭ Rectangle</button>
+          <button class="draw-btn" data-action="circle">⊙ Circle</button>
+          <button class="draw-btn" id="draw-stop-btn">⬛ Stop</button>
+        </div>
+        <button class="draw-clear-btn" id="draw-clear-btn">✕ Clear All Drawings</button>
+      </div>
+      <div class="section-resize-grip" data-body="body-draw"></div>
+    </div>
+
+    <!-- ── BOOKMARKS ─────────────────────────────────────────── -->
+    <div class="sidebar-section" id="sec-bookmarks">
+      <div class="section-header" data-target="body-bookmarks">
+        <h3>Bookmarks</h3>
+        <span class="section-chevron">▼</span>
+      </div>
+      <div class="section-body" id="body-bookmarks">
+        <div id="bookmark-list">
+          <div class="layer-list-empty" id="bm-empty">No bookmarks saved yet.</div>
+        </div>
+        <div class="bm-add-row">
+          <input class="bm-input" id="bm-name-input" type="text" placeholder="Bookmark name…" />
+          <button class="bm-save-btn" id="bm-save-btn">Save View</button>
+        </div>
+      </div>
+      <div class="section-resize-grip" data-body="body-bookmarks"></div>
+    </div>
+
+    <!-- ── DATA LAYERS ────────────────────────────────────────── -->
+    <div class="sidebar-section" id="sec-layers" style="flex:1; min-height: 80px;">
+      <div class="section-header" data-target="body-layers">
+        <h3>Data Layers</h3>
+        <span class="section-chevron">▼</span>
+      </div>
+      <div class="section-body" id="body-layers" style="max-height: 200px; flex: 1;">
+        <div id="layer-list" class="layer-list-empty">
+          No layers added yet.<br/>Use the button below to start.
+        </div>
+        <button class="add-layer-btn" id="add-layer-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Add Data Layer
+        </button>
+      </div>
+      <div class="section-resize-grip" data-body="body-layers"></div>
+    </div>
+
+  </div><!-- /sidebar -->
 
   <!-- Map -->
   <div id="map-container">
@@ -390,50 +851,31 @@
       <p>Loading ArcGIS runtime…</p>
     </div>
 
-    <!-- Map rendered here by web component -->
-    <div id="viewDiv" style="width:100%;height:100%;"></div>
-    <!-- Collapsible Legend -->
-<div id="legendPanel" style="
-  position:absolute;
-  left:20px;
-  bottom:20px;
-  width:260px;
-  background:#161b22;
-  border:1px solid #30363d;
-  border-radius:8px;
-  padding:0;
-  z-index:40;
-">
-  <div id="legendHeader" style="
-    padding:8px 12px;
-    cursor:pointer;
-    background:#1f2937;
-    border-bottom:1px solid #30363d;
-    font-size:13px;
-  ">
-    Legend ▼
-  </div>
-  <div id="legendBody" style="padding:8px; display:block;">
-    <div id="legendContainer" style="
-  width:100%;
-  max-height:72px;
-  overflow-y:auto;
-  overflow-x:hidden;
-  padding:4px;
-"></div>
-  </div>
-</div>
-  
+    <div id="viewDiv"></div>
+
+    <!-- Legend -->
+    <div id="legendPanel">
+      <div id="legendHeader">
+        <span>Legend</span>
+        <span id="legendChevron">▼</span>
+      </div>
+      <div id="legendBody">
+        <div id="legendContainer"></div>
+      </div>
+    </div>
+
+    <!-- Drawing mode banner -->
+    <div id="draw-banner">✏️ Drawing mode active — click map to draw</div>
+
     <!-- Live coordinate tooltip -->
     <div id="map-tooltip">
       <div><span class="tip-label">Hover map</span> to see coordinates</div>
     </div>
   </div>
 
-</div>
+</div><!-- /layout -->
 
 <script>
-// ── ArcGIS Web Component via AMD ────────────────────────────────
 require([
   "esri/Map",
   "esri/views/MapView",
@@ -444,76 +886,72 @@ require([
   "esri/widgets/ScaleBar",
   "esri/widgets/Compass",
   "esri/widgets/Search",
-  "esri/widgets/Legend"
-], function(Map, MapView, SceneView, Basemap, Zoom, Home, ScaleBar, Compass, Search, Legend) {
+  "esri/widgets/Legend",
+  "esri/widgets/Measurement",
+  "esri/widgets/DistanceMeasurement2D",
+  "esri/widgets/AreaMeasurement2D",
+  "esri/layers/GraphicsLayer",
+  "esri/Graphic",
+  "esri/geometry/Polygon",
+  "esri/geometry/Polyline",
+  "esri/geometry/Point",
+  "esri/views/draw/Draw"
+], function(
+  Map, MapView, SceneView, Basemap, Zoom, Home, ScaleBar, Compass, Search, Legend,
+  Measurement, DistanceMeasurement2D, AreaMeasurement2D,
+  GraphicsLayer, Graphic, Polygon, Polyline, Point, Draw
+) {
 
-  // ── State ────────────────────────────────────────────────────
-  let currentView = null;
-  let is3D = false;
+  // ── State ──────────────────────────────────────────────────
+  let currentView  = null;
+  let is3D         = false;
   let currentBasemap = "dark-gray-vector";
+  let activeDrawTool = null;
+  let drawInstance   = null;
+  let activeMeasure  = null;
+  let measureWidget  = null;
+  let bookmarks      = JSON.parse(localStorage.getItem("gis_bookmarks") || "[]");
 
-  const $  = id => document.getElementById(id);
-  const statusDot  = $("status-dot");
-  const statusText = $("status-text");
-  const overlay    = $("loading-overlay");
+  const graphicsLayer = new GraphicsLayer({ title: "Drawings" });
 
-
-// ── Layer persistence (save / load) ─────────────────────────────
-function saveLayers() {
-  const layersData = map.layers.items.map(lyr => ({
-    url: lyr.url,
-    title: lyr.title,
-    type: lyr.declaredClass.includes("CSV") ? "csv"
-         : lyr.declaredClass.includes("Tile") ? "tile"
-         : "feature"
-  }));
-  localStorage.setItem("savedLayers", JSON.stringify(layersData));
-}
-
-function loadSavedLayers() {
-  const data = JSON.parse(localStorage.getItem("savedLayers") || "[]");
-  data.forEach(l => addLayer(l.url, l.title, l.type));
-}
+  const $ = id => document.getElementById(id);
 
   function setStatus(state, text) {
-    statusDot.className  = "status-dot " + state;
-    statusText.textContent = text;
+    $("status-dot").className = "status-dot " + state;
+    $("status-text").textContent = text;
   }
 
-  // ── Create map ───────────────────────────────────────────────
-  const map = new Map({ basemap: currentBasemap });
+  // ── Map ────────────────────────────────────────────────────
+  const map = new Map({ basemap: currentBasemap, layers: [graphicsLayer] });
 
-  // ── Build view ───────────────────────────────────────────────
+  // ── Build view ─────────────────────────────────────────────
   function buildView(use3D) {
-    if (currentView) currentView.destroy();
+    if (currentView) {
+      currentView.destroy();
+      drawInstance = null;
+    }
 
     const ViewClass = use3D ? SceneView : MapView;
-
     const viewCfg = {
       container: "viewDiv",
       map: map,
-      center: [-98.5795, 39.8283],   // center of contiguous US
+      center: [-98.5795, 39.8283],
       zoom: 4
     };
-
     if (use3D) {
-      viewCfg.camera = {
-        position: { x: -98.5795, y: 20, z: 8000000 },
-        tilt: 30
-      };
+      viewCfg.camera = { position: { x: -98.5795, y: 20, z: 8000000 }, tilt: 30 };
       delete viewCfg.zoom;
     }
-    
+
     const view = new ViewClass(viewCfg);
 
-    // Widgets
+    // Standard widgets
     view.ui.remove("zoom");
     view.ui.add(new Zoom({ view }), "top-left");
     view.ui.add(new Home({ view }), "top-left");
     if (!use3D) view.ui.add(new ScaleBar({ view, unit: "dual" }), "bottom-left");
     view.ui.add(new Compass({ view }), "top-left");
 
-    // Pointer-move → coordinate display
     view.on("pointer-move", evt => {
       const pt = view.toMap({ x: evt.x, y: evt.y });
       if (!pt) return;
@@ -521,9 +959,7 @@ function loadSavedLayers() {
       $("coord-lon").textContent  = pt.longitude.toFixed(5);
       $("coord-zoom").textContent = Math.round(view.zoom);
       $("coord-scale").textContent = Math.round(view.scale).toLocaleString();
-
-      const tooltip = $("map-tooltip");
-      tooltip.innerHTML = `
+      $("map-tooltip").innerHTML = `
         <div><span class="tip-label">lat</span><span class="tip-val">${pt.latitude.toFixed(5)}</span></div>
         <div><span class="tip-label">lon</span><span class="tip-val">${pt.longitude.toFixed(5)}</span></div>
         <div><span class="tip-label">zoom</span><span class="tip-val">${Math.round(view.zoom)}</span></div>
@@ -531,31 +967,18 @@ function loadSavedLayers() {
     });
 
     view.when(() => {
-      overlay.classList.add("hidden");
+      $("loading-overlay").classList.add("hidden");
       setStatus("ready", "Map ready");
-      // Attach search widget to sidebar container
+
       const search = new Search({ view, popupEnabled: false });
-      view.ui.add(search, 'top-right');
-      const legend = new Legend({  
-      view: view,
-      style: "classic"
-});
+      view.ui.add(search, "top-right");
 
-
-// COLLAPSE / EXPAND LEGEND LOGIC
-document.getElementById("legendHeader").onclick = function () {
-  const body = document.getElementById("legendBody");
-  const header = document.getElementById("legendHeader");
-  if (body.style.display === "none") {
-    body.style.display = "block";
-    header.textContent = "Legend ▼";
-  } else {
-    body.style.display = "none";
-    header.textContent = "Legend ▲";
-  }
-};
-
+      const legend = new Legend({ view, style: "classic" });
       legend.container = "legendContainer";
+
+      // Init draw on new view
+      drawInstance = new Draw({ view });
+
       loadSavedLayers();
     }, err => {
       setStatus("", "Error loading map");
@@ -566,407 +989,587 @@ document.getElementById("legendHeader").onclick = function () {
     return view;
   }
 
-  // Initial build
   buildView(false);
 
-  // ── Basemap switcher ─────────────────────────────────────────
+  // ── Basemap ────────────────────────────────────────────────
   document.querySelectorAll(".basemap-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      currentBasemap = id;
-      map.basemap = id;
+      currentBasemap = btn.dataset.id;
+      map.basemap = currentBasemap;
       document.querySelectorAll(".basemap-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
     });
   });
 
-  // ── 3D toggle ────────────────────────────────────────────────
+  // ── 3D toggle ──────────────────────────────────────────────
   $("toggle-3d").addEventListener("change", e => {
     is3D = e.target.checked;
-    overlay.classList.remove("hidden");
+    $("loading-overlay").classList.remove("hidden");
     setStatus("loading", is3D ? "Building 3D scene…" : "Loading 2D map…");
+    stopDrawing();
+    clearMeasure();
     buildView(is3D);
   });
 
-  // ── Add Layer placeholder ─────────────────────────────────────
-  $("add-layer-btn").addEventListener("click", () => {
-    showLayerDialog();
+  // ══════════════════════════════════════════════════════════
+  // ── MEASUREMENT ──────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+
+  function clearMeasure() {
+    if (measureWidget) {
+      measureWidget.destroy();
+      measureWidget = null;
+    }
+    activeMeasure = null;
+    document.querySelectorAll(".measure-btn").forEach(b => b.classList.remove("active"));
+    $("measure-result").innerHTML = `<span style="color:var(--text-muted);">Select a tool, then click the map.</span>`;
+  }
+
+  function startMeasure(type) {
+    if (!currentView || is3D) {
+      $("measure-result").innerHTML = `<span style="color:var(--warning);">Measurement only works in 2D mode.</span>`;
+      return;
+    }
+
+    clearMeasure();
+    stopDrawing();
+    activeMeasure = type;
+
+    document.querySelectorAll(".measure-btn").forEach(b => b.classList.remove("active"));
+    $("meas-" + type).classList.add("active");
+
+    if (type === "distance") {
+      measureWidget = new DistanceMeasurement2D({
+        view: currentView,
+        unit: "miles"
+      });
+      currentView.ui.add(measureWidget, "manual");
+      measureWidget.viewModel.start();
+      $("measure-result").innerHTML = `<span style="color:var(--text-muted);">Click two points to measure distance.</span>`;
+
+      measureWidget.watch("viewModel.measurement", m => {
+        if (m && m.length) {
+          const mi = (m.length.value).toFixed(3);
+          const km = (m.length.value * 1.609344).toFixed(3);
+          $("measure-result").innerHTML = `
+            <div>Distance</div>
+            <div class="mval">${mi} mi &nbsp;/&nbsp; ${km} km</div>
+          `;
+        }
+      });
+
+    } else if (type === "area" || type === "perimeter") {
+      measureWidget = new AreaMeasurement2D({
+        view: currentView,
+        unit: "square-miles"
+      });
+      currentView.ui.add(measureWidget, "manual");
+      measureWidget.viewModel.start();
+      $("measure-result").innerHTML = `<span style="color:var(--text-muted);">Click to draw a polygon and measure.</span>`;
+
+      measureWidget.watch("viewModel.measurement", m => {
+        if (m) {
+          const areaSqMi  = m.area   ? m.area.value.toFixed(3)      : "—";
+          const areaSqKm  = m.area   ? (m.area.value * 2.58999).toFixed(3) : "—";
+          const perimMi   = m.perimeter ? m.perimeter.value.toFixed(3) : "—";
+          const perimKm   = m.perimeter ? (m.perimeter.value * 1.60934).toFixed(3) : "—";
+
+          if (type === "area") {
+            $("measure-result").innerHTML = `
+              <div>Area</div>
+              <div class="mval">${areaSqMi} mi² &nbsp;/&nbsp; ${areaSqKm} km²</div>
+            `;
+          } else {
+            $("measure-result").innerHTML = `
+              <div>Perimeter</div>
+              <div class="mval">${perimMi} mi &nbsp;/&nbsp; ${perimKm} km</div>
+            `;
+          }
+        }
+      });
+    }
+  }
+
+  $("meas-distance").addEventListener("click", () => startMeasure("distance"));
+  $("meas-area").addEventListener("click",     () => startMeasure("area"));
+  $("meas-perimeter").addEventListener("click",() => startMeasure("perimeter"));
+  $("measure-clear-btn").addEventListener("click", clearMeasure);
+
+  // ══════════════════════════════════════════════════════════
+  // ── DRAWING TOOLS ────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+
+  const symbolFor = (type) => {
+    if (type === "point") {
+      return { type: "simple-marker", color: [59, 130, 246, 0.9], size: 10, outline: { color: "white", width: 1.5 } };
+    }
+    if (type === "polyline") {
+      return { type: "simple-line", color: [59, 130, 246, 0.9], width: 2.5 };
+    }
+    return {
+      type: "simple-fill",
+      color: [59, 130, 246, 0.25],
+      outline: { color: [59, 130, 246, 0.9], width: 2 }
+    };
+  };
+
+  function stopDrawing() {
+    if (drawInstance) drawInstance.reset();
+    activeDrawTool = null;
+    document.querySelectorAll(".draw-btn[data-action]").forEach(b => b.classList.remove("active"));
+    $("draw-banner").style.display = "none";
+  }
+
+  function startDraw(action) {
+    if (!currentView) return;
+    clearMeasure();
+    stopDrawing();
+    activeDrawTool = action;
+
+    document.querySelectorAll(".draw-btn[data-action]").forEach(b => b.classList.remove("active"));
+    document.querySelector(`.draw-btn[data-action="${action}"]`).classList.add("active");
+    $("draw-banner").style.display = "block";
+    $("draw-banner").textContent = `✏️ ${action.charAt(0).toUpperCase() + action.slice(1)} drawing active — click map`;
+
+    const drawGeomType = (action === "point") ? "point"
+      : (action === "polyline") ? "polyline"
+      : (action === "rectangle") ? "rectangle"
+      : (action === "circle") ? "circle"
+      : "polygon";
+
+    const drawAction = drawInstance.create(drawGeomType, { mode: "click" });
+
+    drawAction.on(["draw-complete", "vertex-add"], evt => {
+      if (!evt.type.includes("complete")) return;
+
+      let geom;
+      const sr = currentView.spatialReference;
+
+      if (drawGeomType === "point") {
+        geom = new Point({ x: evt.coordinates[0], y: evt.coordinates[1], spatialReference: sr });
+      } else if (drawGeomType === "polyline") {
+        geom = new Polyline({ paths: [evt.vertices], spatialReference: sr });
+      } else {
+        geom = new Polygon({ rings: [evt.vertices], spatialReference: sr });
+      }
+
+      const symType = (drawGeomType === "point") ? "point"
+        : (drawGeomType === "polyline") ? "polyline"
+        : "polygon";
+
+      const graphic = new Graphic({ geometry: geom, symbol: symbolFor(symType) });
+      graphicsLayer.add(graphic);
+
+      // Restart draw so user can keep placing
+      stopDrawing();
+      setTimeout(() => startDraw(action), 50);
+    });
+  }
+
+  document.querySelectorAll(".draw-btn[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const action = btn.dataset.action;
+      if (activeDrawTool === action) { stopDrawing(); return; }
+      startDraw(action);
+    });
   });
 
-  // ── Layer dialog ─────────────────────────────────────────────
+  $("draw-stop-btn").addEventListener("click", stopDrawing);
+
+  $("draw-clear-btn").addEventListener("click", () => {
+    graphicsLayer.removeAll();
+    stopDrawing();
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // ── BOOKMARKS ────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+
+  function saveBookmarks() {
+    localStorage.setItem("gis_bookmarks", JSON.stringify(bookmarks));
+  }
+
+  function renderBookmarks() {
+    const list = $("bookmark-list");
+    const empty = $("bm-empty");
+
+    // Remove old items (not empty msg)
+    list.querySelectorAll(".bookmark-item").forEach(el => el.remove());
+
+    if (!bookmarks.length) {
+      if (empty) empty.style.display = "block";
+      return;
+    }
+    if (empty) empty.style.display = "none";
+
+    bookmarks.forEach((bm, i) => {
+      const el = document.createElement("div");
+      el.className = "bookmark-item";
+      el.innerHTML = `
+        <div class="bookmark-item-left">
+          <span class="bm-icon">📌</span>
+          <span title="${bm.name}">${bm.name}</span>
+        </div>
+        <button class="bm-rm" data-i="${i}" title="Remove">✕</button>
+      `;
+      el.addEventListener("click", e => {
+        if (e.target.classList.contains("bm-rm")) return;
+        if (!currentView) return;
+        currentView.goTo({ center: [bm.lon, bm.lat], zoom: bm.zoom }).catch(() => {});
+      });
+      el.querySelector(".bm-rm").addEventListener("click", () => {
+        bookmarks.splice(i, 1);
+        saveBookmarks();
+        renderBookmarks();
+      });
+      list.appendChild(el);
+    });
+  }
+
+  $("bm-save-btn").addEventListener("click", () => {
+    if (!currentView) return;
+    const name = $("bm-name-input").value.trim() || ("View " + (bookmarks.length + 1));
+    const center = currentView.center;
+    bookmarks.push({ name, lat: center.latitude, lon: center.longitude, zoom: Math.round(currentView.zoom) });
+    saveBookmarks();
+    renderBookmarks();
+    $("bm-name-input").value = "";
+  });
+
+  $("bm-name-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") $("bm-save-btn").click();
+  });
+
+  renderBookmarks();
+
+  // ══════════════════════════════════════════════════════════
+  // ── LAYER MANAGEMENT ─────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+
+  function saveLayers() {
+    const data = map.layers.items
+      .filter(l => l !== graphicsLayer)
+      .map(lyr => ({
+        url: lyr.url,
+        title: lyr.title,
+        type: lyr.declaredClass.includes("CSV") ? "csv"
+             : lyr.declaredClass.includes("Tile") ? "tile"
+             : "feature"
+      }));
+    localStorage.setItem("savedLayers", JSON.stringify(data));
+  }
+
+  function loadSavedLayers() {
+    const data = JSON.parse(localStorage.getItem("savedLayers") || "[]");
+    data.forEach(l => addLayer(l.url, l.title, l.type));
+  }
+
+  $("add-layer-btn").addEventListener("click", showLayerDialog);
+
   function showLayerDialog() {
-    // Simple in-page modal for entering a Feature Layer URL
-    const existing = document.getElementById("layer-dialog");
+    const existing = $("layer-dialog");
     if (existing) existing.remove();
 
     const dialog = document.createElement("div");
     dialog.id = "layer-dialog";
     dialog.style.cssText = `
-      position:fixed; inset:0; z-index:200;
+      position:fixed;inset:0;z-index:200;
       background:rgba(0,0,0,0.7);
-      display:flex; align-items:center; justify-content:center;
+      display:flex;align-items:center;justify-content:center;
     `;
     dialog.innerHTML = `
       <div style="
-        background:#1f2937; border:1px solid #30363d;
-        border-radius:12px; padding:28px; width:440px;
+        background:var(--surface-2);border:1px solid var(--border);
+        border-radius:12px;padding:28px;width:440px;
         box-shadow:0 8px 40px rgba(0,0,0,0.7);
-        font-family:'Inter',sans-serif; color:#e6edf3;
+        font-family:var(--font-ui);color:var(--text);
       ">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
           <h2 style="font-size:16px;font-weight:600;">Add Data Layer</h2>
-          <button id="dialog-close" style="background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer;">✕</button>
+          <button id="dialog-close" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
         </div>
-
-        <div style="margin-bottom:16px;">
-          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#8b949e;display:block;margin-bottom:8px;">
-            Layer Type
-          </label>
-          <select id="layer-type" style="
-            width:100%;padding:9px 12px;background:#0d1117;
-            border:1px solid #30363d;border-radius:8px;color:#e6edf3;
-            font-size:13px;font-family:inherit;
-          ">
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);display:block;margin-bottom:8px;">Layer Type</label>
+          <select id="layer-type" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;">
             <option value="feature">Feature Layer (URL)</option>
             <option value="tile">Tile Layer (URL)</option>
             <option value="csv">CSV Layer (URL)</option>
             <option value="geojson">GeoJSON Layer (URL)</option>
             <option value="wms">WMS Layer (URL)</option>
-            <option value="wmts">WMTS Layer (URL)</option>
             <option value="kml">KML Layer (URL)</option>
           </select>
         </div>
-
-        <div style="margin-bottom:16px;">
-          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#8b949e;display:block;margin-bottom:8px;">
-            Service URL
-          </label>
-          <input id="layer-url" type="text" placeholder="https://services.arcgis.com/…/FeatureServer/0" style="
-            width:100%;padding:9px 12px;background:#0d1117;
-            border:1px solid #30363d;border-radius:8px;color:#e6edf3;
-            font-size:13px;font-family:inherit;outline:none;
-          " />
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);display:block;margin-bottom:8px;">Service URL</label>
+          <input id="layer-url" type="text" placeholder="https://services.arcgis.com/…/FeatureServer/0" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
         </div>
-
-        <div style="margin-bottom:20px;">
-          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#8b949e;display:block;margin-bottom:8px;">
-            Display Name
-          </label>
-          <input id="layer-name" type="text" placeholder="My Layer" style="
-            width:100%;padding:9px 12px;background:#0d1117;
-            border:1px solid #30363d;border-radius:8px;color:#e6edf3;
-            font-size:13px;font-family:inherit;outline:none;
-          " />
+        <div style="margin-bottom:18px;">
+          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);display:block;margin-bottom:8px;">Display Name</label>
+          <input id="layer-name" type="text" placeholder="My Layer" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
         </div>
-
-        <div style="font-size:11px;color:#8b949e;margin-bottom:20px;line-height:1.7;background:#0d1117;border-radius:8px;padding:10px 12px;">
-          <strong style="color:#3b82f6;">Quick test layers:</strong><br/>
-          <span style="font-family:monospace;">https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/World_Cities/FeatureServer/0</span>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:18px;line-height:1.7;background:var(--bg);border-radius:8px;padding:10px 12px;">
+          <strong style="color:var(--accent);">Quick test layer:</strong><br/>
+          <span style="font-family:monospace;font-size:10px;">https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/World_Cities/FeatureServer/0</span>
         </div>
-
         <div style="display:flex;gap:10px;justify-content:flex-end;">
-          <button id="dialog-cancel" style="
-            padding:9px 18px;background:transparent;
-            border:1px solid #30363d;border-radius:8px;
-            color:#8b949e;font-family:inherit;font-size:13px;cursor:pointer;
-          ">Cancel</button>
-          <button id="dialog-add" style="
-            padding:9px 18px;background:#1d4ed8;
-            border:1px solid #3b82f6;border-radius:8px;
-            color:white;font-family:inherit;font-size:13px;cursor:pointer;
-          ">Add Layer</button>
+          <button id="dialog-cancel" style="padding:9px 18px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-family:inherit;font-size:13px;cursor:pointer;">Cancel</button>
+          <button id="dialog-add" style="padding:9px 18px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:8px;color:white;font-family:inherit;font-size:13px;cursor:pointer;">Add Layer</button>
         </div>
       </div>
     `;
-
     document.body.appendChild(dialog);
-
-    document.getElementById("dialog-close").onclick   = () => dialog.remove();
-    document.getElementById("dialog-cancel").onclick  = () => dialog.remove();
-    document.getElementById("dialog-add").onclick     = () => addLayerFromDialog(dialog);
+    $("dialog-close").onclick  = () => dialog.remove();
+    $("dialog-cancel").onclick = () => dialog.remove();
+    $("dialog-add").onclick    = () => {
+      const url  = $("layer-url").value.trim();
+      const name = $("layer-name").value.trim() || "Layer";
+      const type = $("layer-type").value;
+      if (!url) { $("layer-url").style.borderColor = "#ef4444"; return; }
+      dialog.remove();
+      addLayer(url, name, type);
+    };
   }
 
-  function addLayerFromDialog(dialog) {
-    const url   = document.getElementById("layer-url").value.trim();
-    const name  = document.getElementById("layer-name").value.trim() || "Layer";
-    const type  = document.getElementById("layer-type").value;
-
-    if (!url) {
-      document.getElementById("layer-url").style.borderColor = "#ef4444";
-      return;
-    }
-
-    dialog.remove();
-    addLayer(url, name, type);
-  }
-  
   function addLayer(url, title, type) {
     setStatus("loading", "Loading layer…");
-
-    // Dynamically require the right layer class
     const moduleMap = {
       feature: "esri/layers/FeatureLayer",
       tile:    "esri/layers/TileLayer",
       csv:     "esri/layers/CSVLayer"
     };
-
     require([moduleMap[type] || "esri/layers/FeatureLayer"], function(LayerClass) {
       const layer = new LayerClass({ url, title });
-
       map.add(layer);
 
       layer.when(() => {
-        //
-// LABELING — adds text labels for the layer
-//
-try {
-  const labelField = layer.fields.find(f =>
-    f.type === "string" &&
-    !["objectid", "globalid"].includes(f.name.toLowerCase())
-  );
-
-  if (labelField) {
-    layer.labelingInfo = [{
-      labelExpressionInfo: {
-  expression: `$feature.${labelField.name}`
-},
-      symbol: is3D
-        ? {
-            // 3D label
-            type: "label-3d",
-            symbolLayers: [{
-              type: "text",
-              material: { color: "white" },
-              size: 12,
-              halo: {
-                color: "black",
-                size: 2
+        try {
+          const labelField = layer.fields && layer.fields.find(f =>
+            f.type === "string" && !["objectid","globalid"].includes(f.name.toLowerCase())
+          );
+          if (labelField) {
+            layer.labelingInfo = [{
+              labelExpressionInfo: { expression: `$feature.${labelField.name}` },
+              symbol: {
+                type: "text", color: "white", haloColor: "black", haloSize: 2,
+                font: { family: "Arial", size: 12, weight: "bold" }
               }
-            }]
+            }];
           }
-        : {
-            // 2D label
-            type: "text",
-            color: "white",
-            haloColor: "black",
-            haloSize: 2,
-            font: {
-              family: "Arial",
-              size: 12,
-              weight: "bold"
-            }
+        } catch(e) {}
+
+        try {
+          const fields = layer.fields || [];
+          const field  = fields.find(f => f.type === "string" && !["objectid","globalid"].includes(f.name.toLowerCase()));
+          if (field) {
+            layer.queryFeatures().then(result => {
+              const values = [...new Set(result.features.map(f => f.attributes[field.name]))];
+              const geo = layer.geometryType;
+              const symbolFor2 = color => {
+                if (geo === "point" || geo === "multipoint") return { type:"simple-marker", color, size:8, outline:{color:"white",width:0.5} };
+                if (geo === "polyline") return { type:"simple-line", color, width:2 };
+                return { type:"simple-fill", color, outline:{color:"white",width:0.5} };
+              };
+              layer.renderer = {
+                type: "unique-value",
+                field: field.name,
+                uniqueValueInfos: values.map(val => ({
+                  value: val, label: val,
+                  symbol: symbolFor2([
+                    Math.floor(Math.random()*200)+30,
+                    Math.floor(Math.random()*200)+30,
+                    Math.floor(Math.random()*200)+30,
+                    0.8
+                  ])
+                }))
+              };
+            });
           }
-    }];
-  }
-} catch (err) {
-  console.warn("Labeling skipped:", err);
-}
+        } catch(e) {}
+
+        try {
+          const popupFields = (layer.fields || []).filter(f => f.type !== "oid").map(f => ({ fieldName: f.name, label: f.alias || f.name, visible: true }));
+          layer.popupTemplate = { title: layer.title || "Information", content: [{ type:"fields", fieldInfos: popupFields }] };
+        } catch(e) {}
 
         setStatus("ready", "Layer loaded");
-
-// Auto‑create unique-value renderer (geometry aware)
-try {
-  const fields = layer.fields || [];
-  const field = fields.find(f =>
-    f.type === "string" &&
-    !["objectid", "globalid"].includes(f.name.toLowerCase())
-  );
-
-  if (!field) return;
-
-  layer.queryFeatures().then(result => {
-    const values = [...new Set(result.features.map(f => f.attributes[field.name]))];
-
-    function randomColor() {
-      return [
-        Math.floor(Math.random() * 200) + 30,
-        Math.floor(Math.random() * 200) + 30,
-        Math.floor(Math.random() * 200) + 30,
-        0.8
-      ];
-    }
-
-    const geometryType = layer.geometryType;
-
-    const symbolFor = (color) => {
-      if (geometryType === "point" || geometryType === "multipoint") {
-        return {
-          type: "simple-marker",
-          color,
-          size: 8,
-          outline: { color: "white", width: 0.5 }
-        };
-      }
-      if (geometryType === "polyline") {
-        return {
-          type: "simple-line",
-          color,
-          width: 2
-        };
-      }
-      return {
-        type: "simple-fill",
-        color,
-        outline: { color: "white", width: 0.5 }
-      };
-    };
-
-    const uniqueValueInfos = values.map(val => {
-      const color = randomColor();
-      return {
-        value: val,
-        label: val,
-        symbol: symbolFor(color)
-      };
-    });
-
-    layer.renderer = {
-      type: "unique-value",
-      field: field.name,
-      uniqueValueInfos
-    };
-  });
-} catch (err) {
-  console.warn("Renderer skipped:", err);
-}
-
-//
-// POPUP TEMPLATE — enables click-to-view attribute info
-//
-try {
-  // Build popup fields automatically
-  const popupFields = layer.fields
-    .filter(f => f.type !== "oid") // skip objectID
-    .map(f => ({
-      fieldName: f.name,
-      label: f.alias || f.name,
-      visible: true
-    }));
-
-  layer.popupTemplate = {
-    title: layer.title || "Information",
-    content: [{
-      type: "fields",
-      fieldInfos: popupFields
-    }]
-  };
-} catch (err) {
-  console.warn("Popup template skipped:", err);
-}
-
-        setStatus("ready", "Layer loaded");
-        renderLayerList(map.layers.items);
+        renderLayerList(map.layers.items.filter(l => l !== graphicsLayer));
         saveLayers();
-        // Zoom to layer extent
-        if (currentView && layer.fullExtent) {
-          currentView.goTo(layer.fullExtent).catch(() => {});
-        }
+        if (currentView && layer.fullExtent) currentView.goTo(layer.fullExtent).catch(() => {});
       }, err => {
         setStatus("", "Layer error");
-        console.error("Layer load error:", err);
+        console.error(err);
         alert("Could not load layer. Check the URL and try again.");
       });
     });
   }
-   
-// ── Layer persistence (save / load) ─────────────────────────────
-function saveLayers() {
-  const layersData = map.layers.items.map(lyr => ({
-    url: lyr.url,
-    title: lyr.title,
-    type: lyr.declaredClass.includes("CSV") ? "csv"
-         : lyr.declaredClass.includes("Tile") ? "tile"
-         : "feature"
-  }));
-  localStorage.setItem("savedLayers", JSON.stringify(layersData));
-}
 
-function loadSavedLayers() {
-  const data = JSON.parse(localStorage.getItem("savedLayers") || "[]");
-  data.forEach(l => addLayer(l.url, l.title, l.type));
-}
-
-  // ── Render layer list in sidebar ─────────────────────────────
   function renderLayerList(layers) {
     const list = $("layer-list");
     if (!layers.length) {
-      list.innerHTML = "No layers added yet.<br/>Use the button below to start exploring data.";
       list.className = "layer-list-empty";
+      list.innerHTML = "No layers added yet.<br/>Use the button below to start.";
       return;
     }
-
     list.className = "";
     list.innerHTML = "";
-
     layers.forEach((lyr, i) => {
       const item = document.createElement("div");
-      item.style.cssText = `
-        display:flex;align-items:center;justify-content:space-between;
-        padding:8px 10px;margin-bottom:6px;
-        background:#0d1117;border:1px solid #30363d;
-        border-radius:8px;font-size:13px;
-      `;
-
+      item.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:7px 9px;margin-bottom:5px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:13px;`;
       const left = document.createElement("div");
-      left.style.cssText = "display:flex;align-items:center;gap:8px;min-width:0;";
-      left.innerHTML = `
-        <span style="width:10px;height:10px;border-radius:2px;background:#3b82f6;flex-shrink:0;"></span>
-        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${lyr.title}">${lyr.title || "Layer " + (i+1)}</span>
-      `;
-
+      left.style.cssText = "display:flex;align-items:center;gap:7px;min-width:0;";
+      left.innerHTML = `<span style="width:9px;height:9px;border-radius:2px;background:var(--accent);flex-shrink:0;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${lyr.title}">${lyr.title || "Layer "+(i+1)}</span>`;
       const right = document.createElement("div");
       right.style.cssText = "display:flex;gap:4px;flex-shrink:0;";
-
-      // Visibility toggle
       const visBtn = document.createElement("button");
       visBtn.title = "Toggle visibility";
-      visBtn.style.cssText = "background:none;border:none;cursor:pointer;padding:3px;color:#8b949e;font-size:14px;";
+      visBtn.style.cssText = "background:none;border:none;cursor:pointer;padding:3px;color:var(--text-muted);font-size:14px;";
       visBtn.textContent = "👁";
-      visBtn.onclick = () => {
-        lyr.visible = !lyr.visible;
-        visBtn.style.opacity = lyr.visible ? "1" : "0.35";
-      };
-
-      // Remove button
+      visBtn.onclick = () => { lyr.visible = !lyr.visible; visBtn.style.opacity = lyr.visible ? "1" : "0.35"; };
       const rmBtn = document.createElement("button");
       rmBtn.title = "Remove layer";
-      rmBtn.style.cssText = "background:none;border:none;cursor:pointer;padding:3px;color:#8b949e;font-size:13px;";
+      rmBtn.style.cssText = "background:none;border:none;cursor:pointer;padding:3px;color:var(--text-muted);font-size:13px;";
       rmBtn.textContent = "✕";
-      rmBtn.onclick = () => {
-        map.remove(lyr);
-        renderLayerList(map.layers.items);
-        saveLayers();
-      };
-
+      rmBtn.onclick = () => { map.remove(lyr); renderLayerList(map.layers.items.filter(l => l !== graphicsLayer)); saveLayers(); };
       right.append(visBtn, rmBtn);
       item.append(left, right);
       list.appendChild(item);
     });
   }
 
-});
-</script>
+}); // end require
 
-<script>
-  window.addEventListener('load', () => {
-    if (typeof require === 'undefined') {
-      const overlay = document.getElementById('loading-overlay');
-      overlay.classList.remove('hidden');
-      overlay.innerHTML = `
-        <div style="text-align:center;padding:24px;max-width:360px;">
-          <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
-          <p style="color:#ef4444;font-size:15px;font-weight:600;margin-bottom:10px;">ArcGIS API failed to load</p>
-          <p style="color:#8b949e;font-size:13px;line-height:1.7;">
-            The ArcGIS CDN script could not be reached. This is usually caused by:<br/><br/>
-            <strong style="color:#e6edf3;">1.</strong> No internet connection<br/>
-            <strong style="color:#e6edf3;">2.</strong> Opening the file directly as <code style="color:#3b82f6;">file://</code> — try serving it locally instead:<br/><br/>
-            <code style="background:#0d1117;padding:6px 10px;border-radius:6px;display:inline-block;color:#3b82f6;">python -m http.server 8080</code><br/><br/>
-            then open <code style="color:#3b82f6;">http://localhost:8080</code>
-          </p>
-        </div>
-      `;
-    }
+// ══════════════════════════════════════════════════════════════
+// ── DARK / LIGHT MODE TOGGLE ──────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+(function() {
+  let isDark = true;
+  const btn = document.getElementById("theme-toggle-btn");
+  const esriCss = document.getElementById("esri-theme-css");
+
+  btn.addEventListener("click", () => {
+    isDark = !isDark;
+    document.body.classList.toggle("light-mode", !isDark);
+    esriCss.href = isDark
+      ? "https://js.arcgis.com/4.30/esri/themes/dark/main.css"
+      : "https://js.arcgis.com/4.30/esri/themes/light/main.css";
+    btn.innerHTML = isDark
+      ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> Light Mode`
+      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Dark Mode`;
   });
+})();
+
+// ══════════════════════════════════════════════════════════════
+// ── COLLAPSIBLE SIDEBAR SECTIONS ─────────────────────────────
+// ══════════════════════════════════════════════════════════════
+document.querySelectorAll(".section-header").forEach(header => {
+  header.addEventListener("click", () => {
+    const targetId = header.dataset.target;
+    const body     = document.getElementById(targetId);
+    if (!body) return;
+    const collapsed = body.classList.toggle("collapsed");
+    header.classList.toggle("collapsed", collapsed);
+  });
+});
+
+// Legend collapse
+document.getElementById("legendHeader").addEventListener("click", () => {
+  const body    = document.getElementById("legendBody");
+  const chevron = document.getElementById("legendChevron");
+  const isOpen  = body.style.display !== "none";
+  body.style.display = isOpen ? "none" : "block";
+  chevron.textContent = isOpen ? "▲" : "▼";
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── SIDEBAR RESIZE (horizontal) ───────────────────────────────
+// ══════════════════════════════════════════════════════════════
+(function() {
+  const sidebar  = document.getElementById("sidebar");
+  const resizer  = document.getElementById("sidebar-resizer");
+  let dragging   = false;
+  let startX     = 0;
+  let startW     = 0;
+
+  resizer.addEventListener("mousedown", e => {
+    dragging = true;
+    startX = e.clientX;
+    startW = sidebar.offsetWidth;
+    resizer.classList.add("dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  });
+
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const newW = Math.max(200, Math.min(520, startW + (e.clientX - startX)));
+    sidebar.style.width = newW + "px";
+    document.documentElement.style.setProperty("--sidebar-w", newW + "px");
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove("dragging");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  });
+})();
+
+// ══════════════════════════════════════════════════════════════
+// ── SECTION BODY VERTICAL RESIZE (ns-resize grips) ───────────
+// ══════════════════════════════════════════════════════════════
+document.querySelectorAll(".section-resize-grip").forEach(grip => {
+  let dragging = false;
+  let startY   = 0;
+  let startH   = 0;
+  const bodyId = grip.dataset.body;
+
+  grip.addEventListener("mousedown", e => {
+    const body = document.getElementById(bodyId);
+    if (!body || body.classList.contains("collapsed")) return;
+    dragging = true;
+    startY   = e.clientY;
+    startH   = body.offsetHeight;
+    grip.classList.add("dragging");
+    document.body.style.cursor = "ns-resize";
+    document.body.style.userSelect = "none";
+    e.stopPropagation();
+  });
+
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const body = document.getElementById(bodyId);
+    if (!body) return;
+    const newH = Math.max(60, Math.min(500, startH + (e.clientY - startY)));
+    body.style.maxHeight = newH + "px";
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    grip.classList.remove("dragging");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  });
+});
+
+// ── Fallback if ArcGIS CDN fails ──────────────────────────────
+window.addEventListener("load", () => {
+  if (typeof require === "undefined") {
+    const overlay = document.getElementById("loading-overlay");
+    overlay.classList.remove("hidden");
+    overlay.innerHTML = `
+      <div style="text-align:center;padding:24px;max-width:360px;">
+        <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+        <p style="color:#ef4444;font-size:15px;font-weight:600;margin-bottom:10px;">ArcGIS API failed to load</p>
+        <p style="color:#8b949e;font-size:13px;line-height:1.7;">
+          The ArcGIS CDN could not be reached. Try serving locally:<br/><br/>
+          <code style="background:#0d1117;padding:6px 10px;border-radius:6px;display:inline-block;color:#3b82f6;">python -m http.server 8080</code>
+        </p>
+      </div>
+    `;
+  }
+});
 </script>
 </body>
 </html>
