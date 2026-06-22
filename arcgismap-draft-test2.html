@@ -1113,8 +1113,163 @@ require([
     };
   };
 
+  // ── Manual drag-draw state ────────────────────────────────
+  let manualDragActive = false;
+  let manualDragStart  = null;   // { x, y } screen coords
+  let previewGraphic   = null;
+
+  // SVG overlay for live preview while dragging
+  const previewSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  previewSvg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:25;";
+  document.getElementById("map-container").appendChild(previewSvg);
+
+  const previewRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  previewRect.setAttribute("fill", "rgba(59,130,246,0.18)");
+  previewRect.setAttribute("stroke", "#3b82f6");
+  previewRect.setAttribute("stroke-width", "2");
+  previewRect.setAttribute("stroke-dasharray", "6 3");
+  previewRect.style.display = "none";
+  previewSvg.appendChild(previewRect);
+
+  const previewEllipse = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+  previewEllipse.setAttribute("fill", "rgba(59,130,246,0.18)");
+  previewEllipse.setAttribute("stroke", "#3b82f6");
+  previewEllipse.setAttribute("stroke-width", "2");
+  previewEllipse.setAttribute("stroke-dasharray", "6 3");
+  previewEllipse.style.display = "none";
+  previewSvg.appendChild(previewEllipse);
+
+  function hidePreview() {
+    previewRect.style.display    = "none";
+    previewEllipse.style.display = "none";
+  }
+
+  // Build a polygon ring from two map points (rectangle)
+  function makeRectRing(p1, p2) {
+    return [[
+      [p1.x, p1.y], [p2.x, p1.y],
+      [p2.x, p2.y], [p1.x, p2.y],
+      [p1.x, p1.y]
+    ]];
+  }
+
+  // Build a circle polygon from center + radius in map units
+  function makeCircleRing(cx, cy, r, steps) {
+    steps = steps || 64;
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+    return [pts];
+  }
+
+  // Convert screen point → map point
+  function screenToMap(sx, sy) {
+    const rect = document.getElementById("viewDiv").getBoundingClientRect();
+    return currentView.toMap({ x: sx - rect.left, y: sy - rect.top });
+  }
+
+  // Disable / re-enable map pan so drag draws instead of pans
+  function disableMapNav() {
+    if (!currentView) return;
+    currentView.navigation.mouseWheelZoomEnabled  = false;
+    currentView.navigation.browserTouchPanEnabled = false;
+    currentView._drawNavHandle = currentView.on("drag", e => e.stopPropagation());
+  }
+  function enableMapNav() {
+    if (!currentView) return;
+    currentView.navigation.mouseWheelZoomEnabled  = true;
+    currentView.navigation.browserTouchPanEnabled = true;
+    if (currentView._drawNavHandle) {
+      currentView._drawNavHandle.remove();
+      currentView._drawNavHandle = null;
+    }
+  }
+
+  // Pointer events on the viewDiv for manual drag drawing
+  const viewDiv = document.getElementById("viewDiv");
+
+  viewDiv.addEventListener("mousedown", e => {
+    if (!activeDrawTool || !["rectangle","circle"].includes(activeDrawTool)) return;
+    if (e.button !== 0) return;
+    manualDragActive = true;
+    manualDragStart  = { x: e.clientX, y: e.clientY };
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  window.addEventListener("mousemove", e => {
+    if (!manualDragActive || !manualDragStart) return;
+    const x0 = manualDragStart.x, y0 = manualDragStart.y;
+    const x1 = e.clientX,         y1 = e.clientY;
+    const rect = document.getElementById("viewDiv").getBoundingClientRect();
+
+    // Coords relative to the viewDiv
+    const rx = Math.min(x0, x1) - rect.left;
+    const ry = Math.min(y0, y1) - rect.top;
+    const rw = Math.abs(x1 - x0);
+    const rh = Math.abs(y1 - y0);
+
+    if (activeDrawTool === "rectangle") {
+      previewEllipse.style.display = "none";
+      previewRect.style.display = "block";
+      previewRect.setAttribute("x", rx);
+      previewRect.setAttribute("y", ry);
+      previewRect.setAttribute("width",  rw);
+      previewRect.setAttribute("height", rh);
+    } else {
+      previewRect.style.display = "none";
+      previewEllipse.style.display = "block";
+      previewEllipse.setAttribute("cx", (Math.min(x0,x1) - rect.left) + rw/2);
+      previewEllipse.setAttribute("cy", (Math.min(y0,y1) - rect.top)  + rh/2);
+      previewEllipse.setAttribute("rx", rw/2);
+      previewEllipse.setAttribute("ry", rh/2);
+    }
+  });
+
+  window.addEventListener("mouseup", e => {
+    if (!manualDragActive || !manualDragStart) return;
+    manualDragActive = false;
+    hidePreview();
+
+    const x0 = manualDragStart.x, y0 = manualDragStart.y;
+    const x1 = e.clientX,         y1 = e.clientY;
+    manualDragStart = null;
+
+    // Ignore tiny accidental clicks (less than 5px drag)
+    if (Math.abs(x1-x0) < 5 && Math.abs(y1-y0) < 5) return;
+
+    const p0 = screenToMap(x0, y0);
+    const p1 = screenToMap(x1, y1);
+    if (!p0 || !p1) return;
+
+    const sr = currentView.spatialReference;
+    let ring;
+
+    if (activeDrawTool === "rectangle") {
+      ring = makeRectRing(p0, p1);
+    } else {
+      // Circle: center is midpoint, radius is half the diagonal
+      const cx = (p0.x + p1.x) / 2;
+      const cy = (p0.y + p1.y) / 2;
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      const r  = Math.sqrt(dx*dx + dy*dy) / 2;
+      ring = makeCircleRing(cx, cy, r);
+    }
+
+    const geom = new Polygon({ rings: ring, spatialReference: sr });
+    const graphic = new Graphic({ geometry: geom, symbol: symbolFor("polygon") });
+    graphicsLayer.add(graphic);
+    // Keep the tool active for the next shape
+  });
+
   function stopDrawing() {
     if (drawInstance) drawInstance.reset();
+    manualDragActive = false;
+    manualDragStart  = null;
+    hidePreview();
+    enableMapNav();
     activeDrawTool = null;
     document.querySelectorAll(".draw-btn[data-action]").forEach(b => b.classList.remove("active"));
     $("draw-banner").style.display = "none";
@@ -1129,12 +1284,19 @@ require([
     document.querySelectorAll(".draw-btn[data-action]").forEach(b => b.classList.remove("active"));
     document.querySelector(`.draw-btn[data-action="${action}"]`).classList.add("active");
     $("draw-banner").style.display = "block";
-    $("draw-banner").textContent = `✏️ ${action.charAt(0).toUpperCase() + action.slice(1)} drawing active — click map`;
+
+    if (action === "rectangle" || action === "circle") {
+      // Manual drag — handled by pointer events above
+      $("draw-banner").textContent = `✏️ ${action.charAt(0).toUpperCase()+action.slice(1)} — click & drag on map to draw`;
+      disableMapNav();
+      return;   // don't use the ArcGIS Draw widget for these
+    }
+
+    // All other tools use the ArcGIS Draw widget with click mode
+    $("draw-banner").textContent = `✏️ ${action.charAt(0).toUpperCase()+action.slice(1)} — click to add points, double-click to finish`;
 
     const drawGeomType = (action === "point") ? "point"
       : (action === "polyline") ? "polyline"
-      : (action === "rectangle") ? "rectangle"
-      : (action === "circle") ? "circle"
       : "polygon";
 
     const drawAction = drawInstance.create(drawGeomType, { mode: "click" });
@@ -1160,7 +1322,6 @@ require([
       const graphic = new Graphic({ geometry: geom, symbol: symbolFor(symType) });
       graphicsLayer.add(graphic);
 
-      // Restart draw so user can keep placing
       stopDrawing();
       setTimeout(() => startDraw(action), 50);
     });
