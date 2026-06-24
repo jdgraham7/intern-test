@@ -161,28 +161,14 @@
       z-index: 10;
       position: relative;
       transition: background 0.25s, border-color 0.25s;
-      /* Large, always-visible scrollbar for the whole sidebar */
       scrollbar-width: auto;
       scrollbar-color: var(--accent) var(--surface-2);
     }
 
-    /* Webkit: wide, always-visible sidebar scrollbar */
-    #sidebar::-webkit-scrollbar {
-      width: 12px;
-    }
-    #sidebar::-webkit-scrollbar-track {
-      background: var(--surface-2);
-      border-left: 1px solid var(--border);
-    }
-    #sidebar::-webkit-scrollbar-thumb {
-      background: var(--border);
-      border-radius: 6px;
-      border: 2px solid var(--surface-2);
-      transition: background 0.2s;
-    }
-    #sidebar::-webkit-scrollbar-thumb:hover {
-      background: var(--accent);
-    }
+    #sidebar::-webkit-scrollbar { width: 12px; }
+    #sidebar::-webkit-scrollbar-track { background: var(--surface-2); border-left: 1px solid var(--border); }
+    #sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; border: 2px solid var(--surface-2); transition: background 0.2s; }
+    #sidebar::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
     /* Resize handle */
     #sidebar-resizer {
@@ -195,9 +181,7 @@
       z-index: 20;
       transition: background 0.2s;
     }
-    #sidebar-resizer:hover, #sidebar-resizer.dragging {
-      background: var(--accent);
-    }
+    #sidebar-resizer:hover, #sidebar-resizer.dragging { background: var(--accent); }
 
     /* Collapsible section wrapper */
     .sidebar-section {
@@ -209,7 +193,6 @@
       transition: border-color 0.25s;
     }
 
-    /* Section header — click to collapse */
     .section-header {
       display: flex;
       align-items: center;
@@ -238,14 +221,12 @@
     }
     .section-header.collapsed .section-chevron { transform: rotate(-90deg); }
 
-    /* Section body — scrollable, resizable */
     .section-body {
       padding: 12px 14px;
       overflow-y: auto;
       overflow-x: hidden;
       scrollbar-width: thin;
       scrollbar-color: var(--border) transparent;
-      /* Default max-height; user can resize via drag handle at bottom */
       max-height: 240px;
       transition: max-height 0.25s ease, padding 0.2s;
       position: relative;
@@ -257,7 +238,6 @@
       overflow: hidden;
     }
 
-    /* Resize grip at bottom of section body */
     .section-resize-grip {
       height: 6px;
       cursor: ns-resize;
@@ -268,9 +248,7 @@
       justify-content: center;
       transition: background 0.2s;
     }
-    .section-resize-grip:hover, .section-resize-grip.dragging {
-      background: var(--accent-glow);
-    }
+    .section-resize-grip:hover, .section-resize-grip.dragging { background: var(--accent-glow); }
     .section-resize-grip::before {
       content: '';
       display: block;
@@ -280,9 +258,7 @@
       background: var(--border);
       transition: background 0.2s;
     }
-    .section-resize-grip:hover::before, .section-resize-grip.dragging::before {
-      background: var(--accent);
-    }
+    .section-resize-grip:hover::before, .section-resize-grip.dragging::before { background: var(--accent); }
     .section-body.collapsed + .section-resize-grip { display: none; }
 
     /* ── Basemap grid ─────────────────────────────────────────── */
@@ -338,6 +314,40 @@
       transition: transform 0.2s, background 0.2s;
     }
     .toggle-switch input:checked + .toggle-track::after { transform: translateX(18px); background: white; }
+
+    /* ── Mini Overview Map ────────────────────────────────────── */
+    #overview-wrapper {
+      margin-top: 4px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      transition: border-color 0.3s;
+      position: relative;
+    }
+    #overview-wrapper:hover { border-color: var(--accent); }
+
+    #overviewDiv {
+      width: 100%;
+      height: 180px;
+      display: block;
+      cursor: crosshair;
+    }
+
+    #overview-label {
+      position: absolute;
+      bottom: 6px;
+      left: 6px;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 2px 7px;
+      border-radius: 4px;
+      pointer-events: none;
+      letter-spacing: 0.04em;
+    }
+
+    body.light-mode #overview-label { background: rgba(255,255,255,0.7); color: #1e2937; }
 
     /* ── Coord display ────────────────────────────────────────── */
     .coord-display {
@@ -671,7 +681,6 @@
   </div>
   <div class="topbar-spacer"></div>
   <div class="topbar-actions">
-    <!-- Dark / Light mode toggle -->
     <button class="icon-btn" id="theme-toggle-btn" title="Toggle dark/light mode">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="5"/>
@@ -720,19 +729,23 @@
       <div class="section-resize-grip" data-body="body-basemap"></div>
     </div>
 
-    <!-- ── VIEW ──────────────────────────────────────────────── -->
+    <!-- ── VIEW / OVERVIEW MAP ───────────────────────────────── -->
     <div class="sidebar-section" id="sec-view">
       <div class="section-header" data-target="body-view">
-        <h3>View</h3>
+        <h3>Overview Map</h3>
         <span class="section-chevron">▼</span>
       </div>
-      <div class="section-body" id="body-view">
-        <div class="toggle-row">
-          <span>3D Scene View</span>
+      <div class="section-body" id="body-view" style="max-height: 260px; padding: 10px 10px 6px 10px;">
+        <div class="toggle-row" style="margin-bottom: 8px;">
+          <span style="font-size:12px; color: var(--text-muted);">Show overview</span>
           <label class="toggle-switch">
-            <input type="checkbox" id="toggle-3d" />
+            <input type="checkbox" id="toggle-overview" checked />
             <div class="toggle-track"></div>
           </label>
+        </div>
+        <div id="overview-wrapper">
+          <div id="overviewDiv"></div>
+          <div id="overview-label">Click to jump · Syncs with main map</div>
         </div>
       </div>
       <div class="section-resize-grip" data-body="body-view"></div>
@@ -879,7 +892,6 @@
 require([
   "esri/Map",
   "esri/views/MapView",
-  "esri/views/SceneView",
   "esri/Basemap",
   "esri/widgets/Zoom",
   "esri/widgets/Home",
@@ -887,7 +899,6 @@ require([
   "esri/widgets/Compass",
   "esri/widgets/Search",
   "esri/widgets/Legend",
-  "esri/widgets/Measurement",
   "esri/widgets/DistanceMeasurement2D",
   "esri/widgets/AreaMeasurement2D",
   "esri/layers/GraphicsLayer",
@@ -895,24 +906,28 @@ require([
   "esri/geometry/Polygon",
   "esri/geometry/Polyline",
   "esri/geometry/Point",
+  "esri/geometry/Extent",
   "esri/views/draw/Draw"
 ], function(
-  Map, MapView, SceneView, Basemap, Zoom, Home, ScaleBar, Compass, Search, Legend,
-  Measurement, DistanceMeasurement2D, AreaMeasurement2D,
-  GraphicsLayer, Graphic, Polygon, Polyline, Point, Draw
+  Map, MapView, Basemap, Zoom, Home, ScaleBar, Compass, Search, Legend,
+  DistanceMeasurement2D, AreaMeasurement2D,
+  GraphicsLayer, Graphic, Polygon, Polyline, Point, Extent, Draw
 ) {
 
   // ── State ──────────────────────────────────────────────────
-  let currentView  = null;
-  let is3D         = false;
-  let currentBasemap = "dark-gray-vector";
+  let currentView    = null;
+  let overviewView   = null;
+  let extentGraphic  = null;
   let activeDrawTool = null;
   let drawInstance   = null;
   let activeMeasure  = null;
   let measureWidget  = null;
   let bookmarks      = JSON.parse(localStorage.getItem("gis_bookmarks") || "[]");
+  let overviewVisible = true;
 
   const graphicsLayer = new GraphicsLayer({ title: "Drawings" });
+  // Separate graphics layer just for the overview extent box
+  const overviewExtentLayer = new GraphicsLayer();
 
   const $ = id => document.getElementById(id);
 
@@ -921,94 +936,184 @@ require([
     $("status-text").textContent = text;
   }
 
-  // ── Map ────────────────────────────────────────────────────
-  const map = new Map({ basemap: currentBasemap, layers: [graphicsLayer] });
+  // ── Main Map ───────────────────────────────────────────────
+  const map = new Map({ basemap: "dark-gray-vector", layers: [graphicsLayer] });
 
-  // ── Build view ─────────────────────────────────────────────
-  function buildView(use3D) {
-    if (currentView) {
-      currentView.destroy();
-      drawInstance = null;
-    }
+  // Overview map uses a lighter basemap so it contrasts with main
+  const overviewMap = new Map({
+    basemap: "gray-vector",
+    layers: [overviewExtentLayer]
+  });
 
-    const ViewClass = use3D ? SceneView : MapView;
-    const viewCfg = {
-      container: "viewDiv",
-      map: map,
-      center: [-78.6569, 35.7915],
-      zoom: 10
-    };
-    if (use3D) {
-      viewCfg.camera = { position: { x: -98.5795, y: 20, z: 8000000 }, tilt: 30 };
-      delete viewCfg.zoom;
-    }
+  // ── Build main view ────────────────────────────────────────
+  const mainView = new MapView({
+    container: "viewDiv",
+    map: map,
+    center: [-78.6569, 35.7915],
+    zoom: 10
+  });
 
-    const view = new ViewClass(viewCfg);
+  mainView.ui.remove("zoom");
+  mainView.ui.add(new Zoom({ view: mainView }), "top-left");
+  mainView.ui.add(new Home({ view: mainView }), "top-left");
+  mainView.ui.add(new ScaleBar({ view: mainView, unit: "dual" }), "bottom-left");
+  mainView.ui.add(new Compass({ view: mainView }), "top-left");
 
-    // Standard widgets
-    view.ui.remove("zoom");
-    view.ui.add(new Zoom({ view }), "top-left");
-    view.ui.add(new Home({ view }), "top-left");
-    if (!use3D) view.ui.add(new ScaleBar({ view, unit: "dual" }), "bottom-left");
-    view.ui.add(new Compass({ view }), "top-left");
+  mainView.on("pointer-move", evt => {
+    const pt = mainView.toMap({ x: evt.x, y: evt.y });
+    if (!pt) return;
+    $("coord-lat").textContent  = pt.latitude.toFixed(5);
+    $("coord-lon").textContent  = pt.longitude.toFixed(5);
+    $("coord-zoom").textContent = Math.round(mainView.zoom);
+    $("coord-scale").textContent = Math.round(mainView.scale).toLocaleString();
+    $("map-tooltip").innerHTML = `
+      <div><span class="tip-label">lat</span><span class="tip-val">${pt.latitude.toFixed(5)}</span></div>
+      <div><span class="tip-label">lon</span><span class="tip-val">${pt.longitude.toFixed(5)}</span></div>
+      <div><span class="tip-label">zoom</span><span class="tip-val">${Math.round(mainView.zoom)}</span></div>
+    `;
+  });
 
-    view.on("pointer-move", evt => {
-      const pt = view.toMap({ x: evt.x, y: evt.y });
-      if (!pt) return;
-      $("coord-lat").textContent  = pt.latitude.toFixed(5);
-      $("coord-lon").textContent  = pt.longitude.toFixed(5);
-      $("coord-zoom").textContent = Math.round(view.zoom);
-      $("coord-scale").textContent = Math.round(view.scale).toLocaleString();
-      $("map-tooltip").innerHTML = `
-        <div><span class="tip-label">lat</span><span class="tip-val">${pt.latitude.toFixed(5)}</span></div>
-        <div><span class="tip-label">lon</span><span class="tip-val">${pt.longitude.toFixed(5)}</span></div>
-        <div><span class="tip-label">zoom</span><span class="tip-val">${Math.round(view.zoom)}</span></div>
-      `;
+  mainView.when(() => {
+    $("loading-overlay").classList.add("hidden");
+    setStatus("ready", "Map ready");
+    currentView = mainView;
+
+    const search = new Search({ view: mainView, popupEnabled: false });
+    mainView.ui.add(search, "top-right");
+
+    const legend = new Legend({ view: mainView, style: "classic" });
+    legend.container = "legendContainer";
+
+    drawInstance = new Draw({ view: mainView });
+
+    loadSavedLayers();
+    initOverviewMap();
+  }, err => {
+    setStatus("", "Error loading map");
+    console.error(err);
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // ── MINI OVERVIEW MAP ────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+
+  function initOverviewMap() {
+    overviewView = new MapView({
+      container: "overviewDiv",
+      map: overviewMap,
+      // Start zoomed out 5 levels from main
+      center: mainView.center,
+      zoom: Math.max(0, mainView.zoom - 5),
+      // Disable all interaction widgets on the overview
+      ui: { components: [] },
+      navigation: {
+        mouseWheelZoomEnabled: false,
+        browserTouchPanEnabled: false
+      }
     });
 
-    view.when(() => {
-      $("loading-overlay").classList.add("hidden");
-      setStatus("ready", "Map ready");
+    // Remove the default attribution / zoom controls
+    overviewView.ui.empty("bottom-left");
+    overviewView.ui.empty("bottom-right");
+    overviewView.ui.empty("top-left");
+    overviewView.ui.empty("top-right");
 
-      const search = new Search({ view, popupEnabled: false });
-      view.ui.add(search, "top-right");
+    overviewView.when(() => {
+      // Draw the initial extent box
+      updateOverviewExtent();
 
-      const legend = new Legend({ view, style: "classic" });
-      legend.container = "legendContainer";
+      // Keep the overview synced as main map moves
+      mainView.watch("extent", () => {
+        updateOverviewExtent();
+      });
 
-      // Init draw on new view
-      drawInstance = new Draw({ view });
+      mainView.watch("center", () => {
+        if (!overviewView) return;
+        overviewView.goTo({
+          center: mainView.center,
+          zoom: Math.max(0, mainView.zoom - 5)
+        }, { animate: false }).catch(() => {});
+      });
 
-      loadSavedLayers();
-    }, err => {
-      setStatus("", "Error loading map");
-      console.error(err);
+      mainView.watch("zoom", () => {
+        if (!overviewView) return;
+        overviewView.goTo({
+          center: mainView.center,
+          zoom: Math.max(0, mainView.zoom - 5)
+        }, { animate: false }).catch(() => {});
+      });
     });
 
-    currentView = view;
-    return view;
+    // Click on overview to jump main map there
+    overviewView.on("click", evt => {
+      const pt = overviewView.toMap({ x: evt.x, y: evt.y });
+      if (!pt || !mainView) return;
+      mainView.goTo({ center: pt }, { duration: 400, easing: "ease-in-out" }).catch(() => {});
+    });
   }
 
-  buildView(false);
+  function updateOverviewExtent() {
+    if (!overviewView || !mainView || !mainView.extent) return;
+
+    overviewExtentLayer.removeAll();
+
+    const ext = mainView.extent;
+
+    // Build a polygon from the current main map extent
+    const ring = [
+      [ext.xmin, ext.ymin],
+      [ext.xmax, ext.ymin],
+      [ext.xmax, ext.ymax],
+      [ext.xmin, ext.ymax],
+      [ext.xmin, ext.ymin]
+    ];
+
+    const extentPoly = new Polygon({
+      rings: [ring],
+      spatialReference: ext.spatialReference
+    });
+
+    extentGraphic = new Graphic({
+      geometry: extentPoly,
+      symbol: {
+        type: "simple-fill",
+        color: [239, 68, 68, 0.15],   // red tint fill
+        outline: {
+          color: [239, 68, 68, 1],    // solid red border
+          width: 2
+        }
+      }
+    });
+
+    overviewExtentLayer.add(extentGraphic);
+  }
+
+  // Toggle overview visibility
+  $("toggle-overview").addEventListener("change", e => {
+    overviewVisible = e.target.checked;
+    const wrapper = $("overview-wrapper");
+    if (overviewVisible) {
+      wrapper.style.display = "block";
+      // Re-sync position
+      if (overviewView && mainView) {
+        overviewView.goTo({
+          center: mainView.center,
+          zoom: Math.max(0, mainView.zoom - 5)
+        }, { animate: false }).catch(() => {});
+        updateOverviewExtent();
+      }
+    } else {
+      wrapper.style.display = "none";
+    }
+  });
 
   // ── Basemap ────────────────────────────────────────────────
   document.querySelectorAll(".basemap-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      currentBasemap = btn.dataset.id;
-      map.basemap = currentBasemap;
+      map.basemap = btn.dataset.id;
       document.querySelectorAll(".basemap-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
     });
-  });
-
-  // ── 3D toggle ──────────────────────────────────────────────
-  $("toggle-3d").addEventListener("change", e => {
-    is3D = e.target.checked;
-    $("loading-overlay").classList.remove("hidden");
-    setStatus("loading", is3D ? "Building 3D scene…" : "Loading 2D map…");
-    stopDrawing();
-    clearMeasure();
-    buildView(is3D);
   });
 
   // ══════════════════════════════════════════════════════════
@@ -1026,10 +1131,7 @@ require([
   }
 
   function startMeasure(type) {
-    if (!currentView || is3D) {
-      $("measure-result").innerHTML = `<span style="color:var(--warning);">Measurement only works in 2D mode.</span>`;
-      return;
-    }
+    if (!mainView) return;
 
     clearMeasure();
     stopDrawing();
@@ -1039,11 +1141,8 @@ require([
     $("meas-" + type).classList.add("active");
 
     if (type === "distance") {
-      measureWidget = new DistanceMeasurement2D({
-        view: currentView,
-        unit: "miles"
-      });
-      currentView.ui.add(measureWidget, "manual");
+      measureWidget = new DistanceMeasurement2D({ view: mainView, unit: "miles" });
+      mainView.ui.add(measureWidget, "manual");
       measureWidget.viewModel.start();
       $("measure-result").innerHTML = `<span style="color:var(--text-muted);">Click two points to measure distance.</span>`;
 
@@ -1059,20 +1158,17 @@ require([
       });
 
     } else if (type === "area" || type === "perimeter") {
-      measureWidget = new AreaMeasurement2D({
-        view: currentView,
-        unit: "square-miles"
-      });
-      currentView.ui.add(measureWidget, "manual");
+      measureWidget = new AreaMeasurement2D({ view: mainView, unit: "square-miles" });
+      mainView.ui.add(measureWidget, "manual");
       measureWidget.viewModel.start();
       $("measure-result").innerHTML = `<span style="color:var(--text-muted);">Click to draw a polygon and measure.</span>`;
 
       measureWidget.watch("viewModel.measurement", m => {
         if (m) {
-          const areaSqMi  = m.area   ? m.area.value.toFixed(3)      : "—";
-          const areaSqKm  = m.area   ? (m.area.value * 2.58999).toFixed(3) : "—";
-          const perimMi   = m.perimeter ? m.perimeter.value.toFixed(3) : "—";
-          const perimKm   = m.perimeter ? (m.perimeter.value * 1.60934).toFixed(3) : "—";
+          const areaSqMi = m.area      ? m.area.value.toFixed(3)                  : "—";
+          const areaSqKm = m.area      ? (m.area.value * 2.58999).toFixed(3)      : "—";
+          const perimMi  = m.perimeter ? m.perimeter.value.toFixed(3)             : "—";
+          const perimKm  = m.perimeter ? (m.perimeter.value * 1.60934).toFixed(3) : "—";
 
           if (type === "area") {
             $("measure-result").innerHTML = `
@@ -1090,9 +1186,9 @@ require([
     }
   }
 
-  $("meas-distance").addEventListener("click", () => startMeasure("distance"));
-  $("meas-area").addEventListener("click",     () => startMeasure("area"));
-  $("meas-perimeter").addEventListener("click",() => startMeasure("perimeter"));
+  $("meas-distance").addEventListener("click",  () => startMeasure("distance"));
+  $("meas-area").addEventListener("click",      () => startMeasure("area"));
+  $("meas-perimeter").addEventListener("click", () => startMeasure("perimeter"));
   $("measure-clear-btn").addEventListener("click", clearMeasure);
 
   // ══════════════════════════════════════════════════════════
@@ -1113,15 +1209,12 @@ require([
     };
   };
 
-  // ── Manual drag-draw state ────────────────────────────────
   let manualDragActive = false;
-  let manualDragStart  = null;   // { x, y } screen coords
-  let previewGraphic   = null;
+  let manualDragStart  = null;
 
-  // SVG overlay for live preview while dragging
   const previewSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   previewSvg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:25;";
-  document.getElementById("map-container").appendChild(previewSvg);
+  $("map-container").appendChild(previewSvg);
 
   const previewRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
   previewRect.setAttribute("fill", "rgba(59,130,246,0.18)");
@@ -1144,7 +1237,6 @@ require([
     previewEllipse.style.display = "none";
   }
 
-  // Build a polygon ring from two map points (rectangle)
   function makeRectRing(p1, p2) {
     return [[
       [p1.x, p1.y], [p2.x, p1.y],
@@ -1153,7 +1245,6 @@ require([
     ]];
   }
 
-  // Build a circle polygon from center + radius in map units
   function makeCircleRing(cx, cy, r, steps) {
     steps = steps || 64;
     const pts = [];
@@ -1164,31 +1255,28 @@ require([
     return [pts];
   }
 
-  // Convert screen point → map point
   function screenToMap(sx, sy) {
-    const rect = document.getElementById("viewDiv").getBoundingClientRect();
-    return currentView.toMap({ x: sx - rect.left, y: sy - rect.top });
+    const rect = $("viewDiv").getBoundingClientRect();
+    return mainView.toMap({ x: sx - rect.left, y: sy - rect.top });
   }
 
-  // Disable / re-enable map pan so drag draws instead of pans
   function disableMapNav() {
-    if (!currentView) return;
-    currentView.navigation.mouseWheelZoomEnabled  = false;
-    currentView.navigation.browserTouchPanEnabled = false;
-    currentView._drawNavHandle = currentView.on("drag", e => e.stopPropagation());
+    if (!mainView) return;
+    mainView.navigation.mouseWheelZoomEnabled  = false;
+    mainView.navigation.browserTouchPanEnabled = false;
+    mainView._drawNavHandle = mainView.on("drag", e => e.stopPropagation());
   }
   function enableMapNav() {
-    if (!currentView) return;
-    currentView.navigation.mouseWheelZoomEnabled  = true;
-    currentView.navigation.browserTouchPanEnabled = true;
-    if (currentView._drawNavHandle) {
-      currentView._drawNavHandle.remove();
-      currentView._drawNavHandle = null;
+    if (!mainView) return;
+    mainView.navigation.mouseWheelZoomEnabled  = true;
+    mainView.navigation.browserTouchPanEnabled = true;
+    if (mainView._drawNavHandle) {
+      mainView._drawNavHandle.remove();
+      mainView._drawNavHandle = null;
     }
   }
 
-  // Pointer events on the viewDiv for manual drag drawing
-  const viewDiv = document.getElementById("viewDiv");
+  const viewDiv = $("viewDiv");
 
   viewDiv.addEventListener("mousedown", e => {
     if (!activeDrawTool || !["rectangle","circle"].includes(activeDrawTool)) return;
@@ -1203,9 +1291,7 @@ require([
     if (!manualDragActive || !manualDragStart) return;
     const x0 = manualDragStart.x, y0 = manualDragStart.y;
     const x1 = e.clientX,         y1 = e.clientY;
-    const rect = document.getElementById("viewDiv").getBoundingClientRect();
-
-    // Coords relative to the viewDiv
+    const rect = $("viewDiv").getBoundingClientRect();
     const rx = Math.min(x0, x1) - rect.left;
     const ry = Math.min(y0, y1) - rect.top;
     const rw = Math.abs(x1 - x0);
@@ -1237,20 +1323,18 @@ require([
     const x1 = e.clientX,         y1 = e.clientY;
     manualDragStart = null;
 
-    // Ignore tiny accidental clicks (less than 5px drag)
     if (Math.abs(x1-x0) < 5 && Math.abs(y1-y0) < 5) return;
 
     const p0 = screenToMap(x0, y0);
     const p1 = screenToMap(x1, y1);
     if (!p0 || !p1) return;
 
-    const sr = currentView.spatialReference;
+    const sr = mainView.spatialReference;
     let ring;
 
     if (activeDrawTool === "rectangle") {
       ring = makeRectRing(p0, p1);
     } else {
-      // Circle: center is midpoint, radius is half the diagonal
       const cx = (p0.x + p1.x) / 2;
       const cy = (p0.y + p1.y) / 2;
       const dx = p1.x - p0.x, dy = p1.y - p0.y;
@@ -1261,7 +1345,6 @@ require([
     const geom = new Polygon({ rings: ring, spatialReference: sr });
     const graphic = new Graphic({ geometry: geom, symbol: symbolFor("polygon") });
     graphicsLayer.add(graphic);
-    // Keep the tool active for the next shape
   });
 
   function stopDrawing() {
@@ -1276,7 +1359,7 @@ require([
   }
 
   function startDraw(action) {
-    if (!currentView) return;
+    if (!mainView) return;
     clearMeasure();
     stopDrawing();
     activeDrawTool = action;
@@ -1286,13 +1369,11 @@ require([
     $("draw-banner").style.display = "block";
 
     if (action === "rectangle" || action === "circle") {
-      // Manual drag — handled by pointer events above
       $("draw-banner").textContent = `✏️ ${action.charAt(0).toUpperCase()+action.slice(1)} — click & drag on map to draw`;
       disableMapNav();
-      return;   // don't use the ArcGIS Draw widget for these
+      return;
     }
 
-    // All other tools use the ArcGIS Draw widget with click mode
     $("draw-banner").textContent = `✏️ ${action.charAt(0).toUpperCase()+action.slice(1)} — click to add points, double-click to finish`;
 
     const drawGeomType = (action === "point") ? "point"
@@ -1305,7 +1386,7 @@ require([
       if (!evt.type.includes("complete")) return;
 
       let geom;
-      const sr = currentView.spatialReference;
+      const sr = mainView.spatialReference;
 
       if (drawGeomType === "point") {
         geom = new Point({ x: evt.coordinates[0], y: evt.coordinates[1], spatialReference: sr });
@@ -1336,7 +1417,6 @@ require([
   });
 
   $("draw-stop-btn").addEventListener("click", stopDrawing);
-
   $("draw-clear-btn").addEventListener("click", () => {
     graphicsLayer.removeAll();
     stopDrawing();
@@ -1354,7 +1434,6 @@ require([
     const list = $("bookmark-list");
     const empty = $("bm-empty");
 
-    // Remove old items (not empty msg)
     list.querySelectorAll(".bookmark-item").forEach(el => el.remove());
 
     if (!bookmarks.length) {
@@ -1375,8 +1454,8 @@ require([
       `;
       el.addEventListener("click", e => {
         if (e.target.classList.contains("bm-rm")) return;
-        if (!currentView) return;
-        currentView.goTo({ center: [bm.lon, bm.lat], zoom: bm.zoom }).catch(() => {});
+        if (!mainView) return;
+        mainView.goTo({ center: [bm.lon, bm.lat], zoom: bm.zoom }).catch(() => {});
       });
       el.querySelector(".bm-rm").addEventListener("click", () => {
         bookmarks.splice(i, 1);
@@ -1388,10 +1467,10 @@ require([
   }
 
   $("bm-save-btn").addEventListener("click", () => {
-    if (!currentView) return;
+    if (!mainView) return;
     const name = $("bm-name-input").value.trim() || ("View " + (bookmarks.length + 1));
-    const center = currentView.center;
-    bookmarks.push({ name, lat: center.latitude, lon: center.longitude, zoom: Math.round(currentView.zoom) });
+    const center = mainView.center;
+    bookmarks.push({ name, lat: center.latitude, lon: center.longitude, zoom: Math.round(mainView.zoom) });
     saveBookmarks();
     renderBookmarks();
     $("bm-name-input").value = "";
@@ -1455,9 +1534,6 @@ require([
             <option value="feature">Feature Layer (URL)</option>
             <option value="tile">Tile Layer (URL)</option>
             <option value="csv">CSV Layer (URL)</option>
-            <option value="geojson">GeoJSON Layer (URL)</option>
-            <option value="wms">WMS Layer (URL)</option>
-            <option value="kml">KML Layer (URL)</option>
           </select>
         </div>
         <div style="margin-bottom:14px;">
@@ -1555,7 +1631,7 @@ require([
         setStatus("ready", "Layer loaded");
         renderLayerList(map.layers.items.filter(l => l !== graphicsLayer));
         saveLayers();
-        if (currentView && layer.fullExtent) currentView.goTo(layer.fullExtent).catch(() => {});
+        if (mainView && layer.fullExtent) mainView.goTo(layer.fullExtent).catch(() => {});
       }, err => {
         setStatus("", "Layer error");
         console.error(err);
