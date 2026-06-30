@@ -331,6 +331,8 @@
       height: 180px;
       display: block;
       cursor: crosshair;
+      position: relative;
+      background: var(--surface-2);
     }
 
     #overview-label {
@@ -939,9 +941,9 @@ require([
   // ── Main Map ───────────────────────────────────────────────
   const map = new Map({ basemap: "dark-gray-vector", layers: [graphicsLayer] });
 
-  // Overview map uses a lighter basemap so it contrasts with main
+  // Overview map mirrors the main basemap and keeps a separate extent layer
   const overviewMap = new Map({
-    basemap: "gray-vector",
+    basemap: map.basemap,
     layers: [overviewExtentLayer]
   });
 
@@ -1019,29 +1021,24 @@ require([
     overviewView.ui.empty("top-right");
 
     overviewView.when(() => {
-      // Draw the initial extent box
-      updateOverviewExtent();
+      const syncOverview = () => {
+        if (!overviewView || !mainView) return;
+        overviewView.goTo({
+          center: mainView.center,
+          zoom: Math.max(0, mainView.zoom - 5)
+        }, { animate: false }).catch(() => {});
+        updateOverviewExtent();
+      };
+
+      requestAnimationFrame(syncOverview);
 
       // Keep the overview synced as main map moves
       mainView.watch("extent", () => {
         updateOverviewExtent();
       });
 
-      mainView.watch("center", () => {
-        if (!overviewView) return;
-        overviewView.goTo({
-          center: mainView.center,
-          zoom: Math.max(0, mainView.zoom - 5)
-        }, { animate: false }).catch(() => {});
-      });
-
-      mainView.watch("zoom", () => {
-        if (!overviewView) return;
-        overviewView.goTo({
-          center: mainView.center,
-          zoom: Math.max(0, mainView.zoom - 5)
-        }, { animate: false }).catch(() => {});
-      });
+      mainView.watch("center", syncOverview);
+      mainView.watch("zoom", syncOverview);
     });
 
     // Click on overview to jump main map there
@@ -1111,6 +1108,9 @@ require([
   document.querySelectorAll(".basemap-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       map.basemap = btn.dataset.id;
+      if (overviewMap) {
+        overviewMap.basemap = btn.dataset.id;
+      }
       document.querySelectorAll(".basemap-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
     });
